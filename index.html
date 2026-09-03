@@ -1,413 +1,174 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8">
-  <title>Mapa z dynamicznym liczeniem punktów z pliku Excel</title>
-  
-  <!-- Leaflet CSS & JS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- Leaflet Geoman CSS & JS (Rysowanie i edycja topologiczna) -->
-  <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
-  <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
-
-  <!-- Turf.js (Analityka przestrzenna) -->
-  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-
-  <!-- SheetJS (Obsługa plików Excel) -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-  <style>
-    body { margin: 0; padding: 0; font-family: sans-serif; display: flex; height: 100vh; }
-    #sidebar { width: 320px; background: #f8f9fa; padding: 15px; box-shadow: 2px 0 5px rgba(0,0,0,0.1); z-index: 1000; overflow-y: auto; }
-    #map { flex: 1; height: 100%; }
-    .file-input { margin-bottom: 15px; width: 100%; }
-    .stats-card { background: white; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin-bottom: 10px; }
-    .color-picker { border: none; width: 30px; height: 30px; cursor: pointer; vertical-align: middle; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa z obsługą KML/KMZ</title>
     
-    /* Styl dla paska postępu */
-    #progressContainer {
-      display: none;
-      margin-top: 10px;
-      background-color: #e9ecef;
-      border-radius: 6px;
-      overflow: hidden;
-      height: 20px;
-      box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
-    }
-    #progressBar {
-      width: 0%;
-      height: 100%;
-      background-color: #28a745;
-      transition: width 0.3s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-size: 0.75em;
-      font-weight: bold;
-    }
-
-    /* Modal wyboru kolumn */
-    #modalOverlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center; }
-    .modal-content { background: white; padding: 20px; border-radius: 8px; width: 350px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-    .modal-content label { display: block; margin-top: 10px; font-weight: bold; }
-    .modal-content select { width: 100%; padding: 6px; margin-top: 4px; border: 1px solid #ccc; border-radius: 4px; }
-    .modal-btn { margin-top: 20px; width: 100%; padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-    .modal-btn:hover { background: #218838; }
-    #statusText { font-size: 0.9em; color: #555; margin-top: 10px; }
-  </style>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body { margin: 0; padding: 0; font-family: sans-serif; }
+        #map { height: 100vh; width: 100vw; }
+        
+        .control-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            max-width: 320px;
+        }
+        .control-panel h4 { margin: 0 0 10px 0; font-size: 14px; }
+        .control-panel input[type="file"], 
+        .control-panel input[type="text"] { width: 100%; margin-bottom: 8px; box-sizing: border-box; }
+        .control-panel button { width: 100%; padding: 6px; cursor: pointer; }
+        .status { font-size: 12px; margin-top: 8px; color: #555; }
+    </style>
 </head>
 <body>
 
-<div id="sidebar">
-  <h3>Panel sterowania</h3>
-  
-  <label><b>Wgraj plik Excel (.xlsx / .xls):</b></label><br>
-  <input type="file" id="fileLoader" class="file-input" accept=".xlsx, .xls"><br>
-  <div id="statusText"></div>
-  <div id="progressContainer">
-    <div id="progressBar">0%</div>
-  </div>
-  <br>
-
-  <h4>Obszary i Statystyki</h4>
-  <div id="polygonList"><i>Brak narysowanych obszarów</i></div>
-</div>
-
-<div id="map"></div>
-
-<!-- Modal do wyboru kolumn z pliku Excel -->
-<div id="modalOverlay">
-  <div class="modal-content">
-    <h3>Dopasuj kolumny</h3>
-    <p style="font-size: 0.85em; color: #666;">Wskaż, które kolumny z wgranego arkusza odpowiadają poniższym danym:</p>
-    
-    <label for="colCity">Miejscowość:*</label>
-    <select id="colCity"></select>
-
-    <label for="colStreet">Ulica:</label>
-    <select id="colStreet"></select>
-
-    <label for="colNumber">Numer domu/lokalu:</label>
-    <select id="colNumber"></select>
-
-    <button class="modal-btn" onclick="startGeocodingProcess()">Zatwierdź i wczytaj punkty</button>
-  </div>
-</div>
-
-<script>
-  // 1. Inicjalizacja mapy
-  const map = L.map('map').setView([52.2297, 21.0122], 6);
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap'
-  }).addTo(map);
-
-  let loadedPointsTurf = [];
-  let pointsLayerGroup = L.layerGroup().addTo(map);
-  let polygonCounter = 0;
-  let currentParsedRows = [];
-
-  // 2. Geoman - Konfiguracja rysowania
-  map.pm.addControls({
-    position: 'topleft',
-    drawMarker: false,
-    drawCircleMarker: false,
-    drawPolyline: false,
-    drawRectangle: true,
-    drawPolygon: true,
-    editMode: true,
-    dragMode: true,
-    removalMode: true
-  });
-
-  map.pm.setGlobalOptions({
-    snappingOption: true,
-    snapDistance: 20,
-    pinning: true // Wspólne przesuwanie wierzchołków
-  });
-
-  // 3. Wczytywanie pliku i ignorowanie pustych wierszy
-  document.getElementById('fileLoader').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function(event) {
-      try {
-        const data = new Uint8Array(event.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
+    <div class="control-panel">
+        <h4>Wgraj plik KML / KMZ</h4>
+        <input type="file" id="fileInput" accept=".kml,.kmz">
         
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
+        <hr style="margin: 10px 0;">
         
-        // Wczytanie wierszy i odfiltrowanie całkowicie pustych rekordów
-        const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+        <h4>Lub podaj adres URL pliku KML</h4>
+        <input type="text" id="urlInput" placeholder="https://...">
+        <button onclick="loadFromUrl()">Pobierz z URL</button>
         
-        currentParsedRows = rawRows.filter(row => {
-          return Object.values(row).some(val => val !== null && val !== undefined && val.toString().trim() !== '');
-        });
+        <div id="status" class="status"></div>
+    </div>
 
-        if (currentParsedRows.length === 0) {
-          alert('Plik Excel nie zawiera danych.');
-          return;
+    <div id="map"></div>
+
+    <!-- Leaflet JS & Biblioteki pomocnicze -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <script>
+        // 1. Inicjalizacja mapy (widok na Polskę)
+        const map = L.map('map').setView([52.237, 21.017], 6);
+
+        // 2. Kafelki CartoDB (brak błędu Access Blocked / Referer)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        }).addTo(map);
+
+        let currentLayer = null;
+
+        // 3. Pomocnicza funkcja podpinająca wyskakujące okienka z możliwością usuwania
+        function setupLayerPopups(layerGroup) {
+            layerGroup.eachLayer(function(layer) {
+                if (layer.feature && layer.feature.properties) {
+                    const props = layer.feature.properties;
+                    let title = props.name || 'Punkt';
+                    let desc = props.description ? `<br>${props.description}` : '';
+                    
+                    // Tworzymy element z zawartością pop-upu i przyciskiem
+                    let popupContent = document.createElement('div');
+                    popupContent.innerHTML = `
+                        <b>${title}</b>${desc}<br><br>
+                        <button class="delete-btn" style="background: #ff4d4d; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; width: 100%;">
+                            ❌ Usuń ten punkt
+                        </button>
+                    `;
+
+                    // Nasłuchiwanie kliknięcia w przycisk "Usuń"
+                    popupContent.querySelector('.delete-btn').addEventListener('click', function() {
+                        map.removeLayer(layer);
+                        if (currentLayer && currentLayer.hasLayer(layer)) {
+                            currentLayer.removeLayer(layer);
+                        }
+                    });
+
+                    layer.bindPopup(popupContent);
+                }
+            });
         }
 
-        const headers = Object.keys(currentParsedRows[0]);
-        populateSelectOptions(headers);
+        // 4. Obsługa wczytywania pliku z dysku
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
 
-        document.getElementById('modalOverlay').style.display = 'flex';
+            showStatus("Wczytywanie pliku...");
 
-      } catch (err) {
-        alert('Błąd podczas odczytywania pliku Excel: ' + err.message);
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  });
+            const reader = new FileReader();
+            const isKmz = file.name.endsWith('.kmz');
 
-  function populateSelectOptions(headers) {
-    const selects = ['colCity', 'colStreet', 'colNumber'];
-    
-    selects.forEach(selectId => {
-      const select = document.getElementById(selectId);
-      select.innerHTML = '';
+            if (isKmz) {
+                reader.readAsArrayBuffer(file);
+                reader.onload = function(evt) {
+                    JSZip.loadAsync(evt.target.result).then(function(zip) {
+                        const kmlFile = Object.keys(zip.files).find(name => name.endsWith('.kml'));
+                        if (kmlFile) {
+                            return zip.files[kmlFile].async("string");
+                        } else {
+                            throw new Error("Brak pliku KML wewnątrz KMZ");
+                        }
+                    }).then(function(kmlText) {
+                        renderKml(kmlText);
+                    }).catch(err => showStatus("Błąd KMZ: " + err.message));
+                };
+            } else {
+                reader.readAsText(file);
+                reader.onload = function(evt) {
+                    renderKml(evt.target.result);
+                };
+            }
+        });
 
-      if (selectId !== 'colCity') {
-        const optEmpty = document.createElement('option');
-        optEmpty.value = '';
-        optEmpty.innerText = '-- Brak / Nie używaj --';
-        select.appendChild(optEmpty);
-      }
+        // 5. Obsługa wczytywania pliku z URL
+        function loadFromUrl() {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) return;
 
-      headers.forEach(header => {
-        const opt = document.createElement('option');
-        opt.value = header;
-        opt.innerText = header;
-        select.appendChild(opt);
-      });
+            showStatus("Pobieranie danych z URL...");
 
-      const lowerHeaders = headers.map(h => h.toLowerCase());
-      if (selectId === 'colCity') {
-        const idx = lowerHeaders.findIndex(h => h.includes('miejscow') || h.includes('miasto') || h.includes('city'));
-        if (idx !== -1) select.value = headers[idx];
-      } else if (selectId === 'colStreet') {
-        const idx = lowerHeaders.findIndex(h => h.includes('ulic') || h.includes('street'));
-        if (idx !== -1) select.value = headers[idx];
-      } else if (selectId === 'colNumber') {
-        const idx = lowerHeaders.findIndex(h => h.includes('num') || h.includes('nr') || h.includes('lokal'));
-        if (idx !== -1) select.value = headers[idx];
-      }
-    });
-  }
+            if (currentLayer) map.removeLayer(currentLayer);
 
-  // 4. Geokodowanie z zapobieganiem błędom 403 oraz paskiem postępu
-  async function startGeocodingProcess() {
-    const cityCol = document.getElementById('colCity').value;
-    const streetCol = document.getElementById('colStreet').value;
-    const numberCol = document.getElementById('colNumber').value;
+            currentLayer = omnivore.kml(url)
+                .on('ready', function() {
+                    if (currentLayer.getBounds().isValid()) {
+                        map.fitBounds(currentLayer.getBounds());
+                    }
+                    setupLayerPopups(currentLayer);
+                    showStatus("Pomyślnie załadowano punkty z URL.");
+                })
+                .on('error', function() {
+                    showStatus("Błąd wczytywania URL (sprawdź politykę CORS/link).");
+                })
+                .addTo(map);
+        }
 
-    if (!cityCol) {
-      alert('Wybór kolumny dla Miejscowości jest wymagany!');
-      return;
-    }
+        // 6. Renderowanie KML na mapie z tekstowych danych KML
+        function renderKml(kmlText) {
+            if (currentLayer) map.removeLayer(currentLayer);
 
-    document.getElementById('modalOverlay').style.display = 'none';
+            const runLayer = omnivore.kml.parse(kmlText);
+            currentLayer = runLayer.addTo(map);
+            
+            runLayer.on('ready', function() {
+                if (runLayer.getBounds().isValid()) {
+                    map.fitBounds(runLayer.getBounds());
+                }
+                
+                setupLayerPopups(runLayer);
+                showStatus(`Załadowano pomyślnie!`);
+            });
+        }
 
-    pointsLayerGroup.clearLayers();
-    const features = [];
-    let successCount = 0;
-    let errorCount = 0;
-
-    const statusEl = document.getElementById('statusText');
-    const progressContainer = document.getElementById('progressContainer');
-    const progressBar = document.getElementById('progressBar');
-
-    progressContainer.style.display = 'block';
-    progressBar.style.width = '0%';
-    progressBar.innerText = '0%';
-
-    const totalRows = currentParsedRows.length;
-
-    for (let i = 0; i < totalRows; i++) {
-      const row = currentParsedRows[i];
-      const city = row[cityCol] ? row[cityCol].toString().trim() : '';
-      const street = streetCol && row[streetCol] ? row[streetCol].toString().trim() : '';
-      const number = numberCol && row[numberCol] ? row[numberCol].toString().trim() : '';
-
-      // Aktualizacja paska postępu
-      const percent = Math.round(((i + 1) / totalRows) * 100);
-      progressBar.style.width = percent + '%';
-      progressBar.innerText = percent + '%';
-
-      // Pomijanie wierszy, które nie mają wypełnionej miejscowości
-      if (!city) {
-        errorCount++;
-        continue;
-      }
-
-      statusEl.innerHTML = `Przetwarzanie adresu <b>${i + 1} z ${totalRows}</b>...`;
-
-      const coords = await geocodeAddress(city, street, number);
-
-      if (coords) {
-        features.push(turf.point([coords.lng, coords.lat]));
-        L.circleMarker([coords.lat, coords.lng], {
-          radius: 5,
-          color: '#28a745',
-          fillColor: '#28a745',
-          fillOpacity: 0.8
-        })
-        .bindPopup(`<b>${city}</b><br>${street} ${number}`)
-        .addTo(pointsLayerGroup);
-        
-        successCount++;
-      } else {
-        errorCount++;
-      }
-
-      // Bezpieczny odstęp czasowy (1.2 s), aby uniknąć limitów zapytania
-      await new Promise(res => setTimeout(res, 1200));
-    }
-
-    loadedPointsTurf = turf.featureCollection(features);
-    statusEl.innerHTML = `<b>Wczytywanie zakończone!</b><br>Sukces: ${successCount}<br>Zignorowano/Błędne: ${errorCount}`;
-
-    if (pointsLayerGroup.getLayers().length > 0) {
-      map.fitBounds(L.featureGroup(pointsLayerGroup.getLayers()).getBounds());
-    }
-
-    updateAllCounts();
-  }
-
-  // Geokodowanie (unikanie błędu 403)
-  async function geocodeAddress(city, street, number) {
-    if (!city) return null;
-
-    const query = `${street} ${number}, ${city}, Polska`.trim();
-    const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
-    
-    try {
-      const response = await fetch(nominatimUrl);
-      
-      if (response.status === 403) {
-        console.warn("Brak dostępu (403) do domyślnego serwera geokodowania.");
-        return null;
-      }
-
-      if (!response.ok) return null;
-
-      const data = await response.json();
-
-      if (data && data.length > 0) {
-        return {
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon)
-        };
-      }
-    } catch (e) {
-      console.warn("Błąd połączenia geokodowania:", query, e);
-    }
-    return null;
-  }
-
-  // 5. Obsługa obszarów i przeliczanie punktów
-  map.on('pm:create', (e) => {
-    const layer = e.layer;
-    polygonCounter++;
-    
-    layer.customData = {
-      id: 'poly_' + Date.now(),
-      name: 'Obszar ' + polygonCounter,
-      color: '#ff7800'
-    };
-
-    layer.setStyle({
-      color: layer.customData.color,
-      fillColor: layer.customData.color,
-      fillOpacity: 0.4
-    });
-
-    layer.on('pm:edit pm:dragend pm:markerdragend', () => {
-      updateAllCounts();
-    });
-
-    updateSidebar();
-    updateAllCounts();
-  });
-
-  map.on('pm:remove', () => {
-    updateSidebar();
-  });
-
-  function updateAllCounts() {
-    const layers = map.pm.getGeomanDrawLayers();
-
-    layers.forEach(layer => {
-      if (!layer.customData) return;
-
-      let count = 0;
-      if (loadedPointsTurf.features && loadedPointsTurf.features.length > 0) {
-        const polyGeoJSON = layer.toGeoJSON();
-        const ptsWithin = turf.pointsWithinPolygon(loadedPointsTurf, polyGeoJSON);
-        count = ptsWithin.features.length;
-      }
-
-      layer.customData.count = count;
-
-      layer.bindTooltip(`<b>${layer.customData.name}</b><br>Punkty: <b>${count}</b>`, {
-        permanent: true,
-        direction: 'center',
-        className: 'polygon-label'
-      }).openTooltip();
-
-      const countEl = document.getElementById(`count-${layer.customData.id}`);
-      if (countEl) countEl.innerText = count;
-    });
-  }
-
-  function updateSidebar() {
-    const listContainer = document.getElementById('polygonList');
-    const layers = map.pm.getGeomanDrawLayers();
-
-    if (layers.length === 0) {
-      listContainer.innerHTML = '<i>Brak narysowanych obszarów</i>';
-      return;
-    }
-
-    listContainer.innerHTML = '';
-    layers.forEach(layer => {
-      if (!layer.customData) return;
-
-      const card = document.createElement('div');
-      card.className = 'stats-card';
-      card.innerHTML = `
-        <label>Nazwa:</label>
-        <input type="text" value="${layer.customData.name}" onchange="updateName('${layer.customData.id}', this.value)" style="width: 130px;">
-        <input type="color" value="${layer.customData.color}" class="color-picker" onchange="updateColor('${layer.customData.id}', this.value)"><br>
-        <div style="margin-top:5px;">Punkty wewnątrz: <b id="count-${layer.customData.id}">${layer.customData.count || 0}</b></div>
-      `;
-      listContainer.appendChild(card);
-    });
-  }
-
-  window.updateName = function(id, newName) {
-    const layer = map.pm.getGeomanDrawLayers().find(l => l.customData && l.customData.id === id);
-    if (layer) {
-      layer.customData.name = newName;
-      updateAllCounts();
-    }
-  };
-
-  window.updateColor = function(id, newColor) {
-    const layer = map.pm.getGeomanDrawLayers().find(l => l.customData && l.customData.id === id);
-    if (layer) {
-      layer.customData.color = newColor;
-      layer.setStyle({ color: newColor, fillColor: newColor });
-    }
-  };
-</script>
-
+        function showStatus(msg) {
+            document.getElementById('status').innerText = msg;
+        }
+    </script>
 </body>
 </html>
