@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa z obsługą KML/KMZ</title>
+    <title>Mapa z KML i Rysowaniem Rejonów</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet Draw CSS (Narzędzia do rysowania rejonów) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     
     <style>
         body { margin: 0; padding: 0; font-family: sans-serif; }
@@ -21,153 +23,192 @@
             padding: 15px;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            max-width: 320px;
+            width: 300px;
         }
         .control-panel h4 { margin: 0 0 10px 0; font-size: 14px; }
-        .control-panel input[type="file"], 
-        .control-panel input[type="text"] { width: 100%; margin-bottom: 8px; box-sizing: border-box; }
-        .control-panel button { width: 100%; padding: 6px; cursor: pointer; }
-        .status { font-size: 12px; margin-top: 8px; color: #555; }
+        .control-panel input[type="file"] { width: 100%; margin-bottom: 8px; box-sizing: border-box; }
+        
+        /* Pasek postępu */
+        .progress-container {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: none;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 12px;
+            background-color: #4CAF50;
+            border-radius: 4px;
+            transition: width 0.2s;
+        }
+        .status { font-size: 12px; margin-top: 6px; color: #333; }
     </style>
 </head>
 <body>
 
     <div class="control-panel">
-        <h4>Wgraj plik KML / KMZ</h4>
+        <h4>Wgraj plik KML / KMZ z dysku</h4>
         <input type="file" id="fileInput" accept=".kml,.kmz">
         
-        <hr style="margin: 10px 0;">
-        
-        <h4>Lub podaj adres URL pliku KML</h4>
-        <input type="text" id="urlInput" placeholder="https://...">
-        <button onclick="loadFromUrl()">Pobierz z URL</button>
-        
+        <div id="progressContainer" class="progress-container">
+            <div id="progressBar" class="progress-bar"></div>
+        </div>
         <div id="status" class="status"></div>
     </div>
 
     <div id="map"></div>
 
-    <!-- Leaflet JS & Biblioteki pomocnicze -->
+    <!-- Biblioteki JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Parser KML bez wymogu API Key -->
+    <script src="https://unpkg.com/leaflet-kml/L.KML.js"></script>
 
     <script>
-        // 1. Inicjalizacja mapy (widok na Polskę)
+        // 1. Inicjalizacja mapy
         const map = L.map('map').setView([52.237, 21.017], 6);
 
-        // 2. Kafelki CartoDB (brak błędu Access Blocked / Referer)
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        // 2. DARMOWE kafelki bez żadnych kluczy API (OpenStreetMap Standard)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        let currentLayer = null;
+        // 3. Konfiguracja warstwy do rysowania rejonów (Leaflet Draw)
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
 
-        // 3. Pomocnicza funkcja podpinająca wyskakujące okienka z możliwością usuwania
-        function setupLayerPopups(layerGroup) {
-            layerGroup.eachLayer(function(layer) {
-                if (layer.feature && layer.feature.properties) {
-                    const props = layer.feature.properties;
-                    let title = props.name || 'Punkt';
-                    let desc = props.description ? `<br>${props.description}` : '';
-                    
-                    // Tworzymy element z zawartością pop-upu i przyciskiem
-                    let popupContent = document.createElement('div');
-                    popupContent.innerHTML = `
-                        <b>${title}</b>${desc}<br><br>
-                        <button class="delete-btn" style="background: #ff4d4d; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; width: 100%;">
-                            ❌ Usuń ten punkt
-                        </button>
-                    `;
+        const drawControl = new L.Control.Draw({
+            edit: {
+                featureGroup: drawnItems
+            },
+            draw: {
+                polygon: true,
+                polyline: true,
+                rectangle: true,
+                circle: true,
+                marker: true,
+                circlemarker: false
+            }
+        });
+        map.addControl(drawControl);
 
-                    // Nasłuchiwanie kliknięcia w przycisk "Usuń"
-                    popupContent.querySelector('.delete-btn').addEventListener('click', function() {
-                        map.removeLayer(layer);
-                        if (currentLayer && currentLayer.hasLayer(layer)) {
-                            currentLayer.removeLayer(layer);
-                        }
-                    });
+        // Zapisywanie narysowanych rejonów do warstwy
+        map.on(L.Draw.Event.CREATED, function (event) {
+            const layer = event.layer;
+            drawnItems.addLayer(layer);
+        });
 
-                    layer.bindPopup(popupContent);
-                }
-            });
-        }
+        // 4. Obsługa pliku KML/KMZ z dysku i Wskaźnik Postępu
+        let currentKmlLayer = null;
 
-        // 4. Obsługa wczytywania pliku z dysku
         document.getElementById('fileInput').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
 
-            showStatus("Wczytywanie pliku...");
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const status = document.getElementById('status');
+
+            progressContainer.style.display = 'block';
+            updateProgress(10, "Odczytywanie pliku z dysku...");
 
             const reader = new FileReader();
-            const isKmz = file.name.endsWith('.kmz');
+            const isKmz = file.name.toLowerCase().endsWith('.kmz');
+
+            // Postęp czytania pliku przez przeglądarkę
+            reader.onprogress = function(data) {
+                if (data.lengthComputable) {
+                    const progress = parseInt((data.loaded / data.total) * 40);
+                    updateProgress(progress, "Ładowanie bajtów z dysku...");
+                }
+            };
 
             if (isKmz) {
                 reader.readAsArrayBuffer(file);
                 reader.onload = function(evt) {
+                    updateProgress(50, "Rozpakowywanie pliku KMZ...");
                     JSZip.loadAsync(evt.target.result).then(function(zip) {
-                        const kmlFile = Object.keys(zip.files).find(name => name.endsWith('.kml'));
+                        const kmlFile = Object.keys(zip.files).find(name => name.toLowerCase().endsWith('.kml'));
                         if (kmlFile) {
                             return zip.files[kmlFile].async("string");
                         } else {
                             throw new Error("Brak pliku KML wewnątrz KMZ");
                         }
                     }).then(function(kmlText) {
-                        renderKml(kmlText);
-                    }).catch(err => showStatus("Błąd KMZ: " + err.message));
+                        updateProgress(75, "Parsowanie struktury KML...");
+                        parseAndRenderKml(kmlText);
+                    }).catch(err => {
+                        updateProgress(0, "Błąd KMZ: " + err.message);
+                    });
                 };
             } else {
                 reader.readAsText(file);
                 reader.onload = function(evt) {
-                    renderKml(evt.target.result);
+                    updateProgress(60, "Parsowanie kodu KML...");
+                    parseAndRenderKml(evt.target.result);
                 };
             }
         });
 
-        // 5. Obsługa wczytywania pliku z URL
-        function loadFromUrl() {
-            const url = document.getElementById('urlInput').value.trim();
-            if (!url) return;
+        // 5. Renderowanie punktów KML na mapie z opcją usuwania
+        function parseAndRenderKml(xmlString) {
+            if (currentKmlLayer) map.removeLayer(currentKmlLayer);
 
-            showStatus("Pobieranie danych z URL...");
+            updateProgress(85, "Tworzenie obiektów na mapie...");
 
-            if (currentLayer) map.removeLayer(currentLayer);
+            setTimeout(() => {
+                try {
+                    const parser = new DOMParser();
+                    const kmlDoc = parser.parseFromString(xmlString, 'text/xml');
+                    const track = new L.KML(kmlDoc);
 
-            currentLayer = omnivore.kml(url)
-                .on('ready', function() {
-                    if (currentLayer.getBounds().isValid()) {
-                        map.fitBounds(currentLayer.getBounds());
+                    currentKmlLayer = track;
+                    map.addLayer(currentKmlLayer);
+
+                    // Dodawanie możliwości usuwania pojedynczych punktów
+                    currentKmlLayer.eachLayer(function(layer) {
+                        if (layer instanceof L.Marker) {
+                            let name = layer.feature ? (layer.feature.properties.name || 'Punkt') : 'Punkt';
+                            
+                            let popupContent = document.createElement('div');
+                            popupContent.innerHTML = `
+                                <b>${name}</b><br><br>
+                                <button class="delete-btn" style="background: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; width: 100%;">
+                                    ❌ Usuń ten punkt
+                                </button>
+                            `;
+
+                            popupContent.querySelector('.delete-btn').addEventListener('click', function() {
+                                map.removeLayer(layer);
+                            });
+
+                            layer.bindPopup(popupContent);
+                        }
+                    });
+
+                    // Dopasowanie widoku mapy
+                    const bounds = track.getBounds();
+                    if (bounds.isValid()) {
+                        map.fitBounds(bounds);
                     }
-                    setupLayerPopups(currentLayer);
-                    showStatus("Pomyślnie załadowano punkty z URL.");
-                })
-                .on('error', function() {
-                    showStatus("Błąd wczytywania URL (sprawdź politykę CORS/link).");
-                })
-                .addTo(map);
-        }
 
-        // 6. Renderowanie KML na mapie z tekstowych danych KML
-        function renderKml(kmlText) {
-            if (currentLayer) map.removeLayer(currentLayer);
-
-            const runLayer = omnivore.kml.parse(kmlText);
-            currentLayer = runLayer.addTo(map);
-            
-            runLayer.on('ready', function() {
-                if (runLayer.getBounds().isValid()) {
-                    map.fitBounds(runLayer.getBounds());
+                    updateProgress(100, "Gotowe! Punkty wczytane.");
+                } catch (e) {
+                    updateProgress(0, "Błąd parsowania pliku KML.");
                 }
-                
-                setupLayerPopups(runLayer);
-                showStatus(`Załadowano pomyślnie!`);
-            });
+            }, 100);
         }
 
-        function showStatus(msg) {
-            document.getElementById('status').innerText = msg;
+        function updateProgress(percent, statusText) {
+            const progressBar = document.getElementById('progressBar');
+            const status = document.getElementById('status');
+            
+            progressBar.style.width = percent + '%';
+            status.innerText = percent + '% - ' + statusText;
         }
     </script>
 </body>
