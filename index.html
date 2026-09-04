@@ -224,6 +224,21 @@
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
     <script>
+        // Pomocnicze wyszukiwanie kart w DOM bez błędów selektorów
+        function findCardByName(name) {
+            const cards = document.querySelectorAll('.region-card');
+            return Array.from(cards).find(c => c.getAttribute('data-region-name') === name);
+        }
+
+        // Pomocnicze spłaszczanie struktury współrzędnych Leaflet
+        function getFlatLatLngs(layer) {
+            let latLngs = layer.getLatLngs();
+            while (Array.isArray(latLngs) && latLngs.length > 0 && Array.isArray(latLngs[0])) {
+                latLngs = latLngs[0];
+            }
+            return latLngs;
+        }
+
         const map = L.map('map').setView([52.237, 21.017], 6);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -237,7 +252,11 @@
         const drawControl = new L.Control.Draw({
             edit: false,
             draw: {
-                polygon: { allowIntersection: false, showArea: true },
+                polygon: { 
+                    allowIntersection: false, 
+                    showArea: true,
+                    snapDistance: 20
+                },
                 rectangle: true,
                 polyline: false, circle: false, marker: false, circlemarker: false
             }
@@ -261,10 +280,11 @@
             const snapshotPolygons = [];
             drawnItems.eachLayer(layer => {
                 if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+                    const flat = getFlatLatLngs(layer);
                     snapshotPolygons.push({
                         name: layer.regionName || 'Rejon',
                         color: layer.regionColor || '#3388ff',
-                        latLngs: JSON.parse(JSON.stringify(layer.getLatLngs()))
+                        latLngs: flat.map(ll => ({ lat: ll.lat, lng: ll.lng }))
                     });
                 }
             });
@@ -278,7 +298,7 @@
             const snapshot = {
                 polygons: snapshotPolygons,
                 markers: snapshotMarkers,
-                processedFiles: new Set(processedFilesSet)
+                processedFiles: Array.from(processedFilesSet)
             };
 
             undoStack.push(snapshot);
@@ -497,7 +517,7 @@
                         l.setStyle({ weight: 3, dashArray: null });
                     }
                 });
-                const prevCard = document.querySelector(`.region-card[data-region-name="${CSS.escape(oldName || '')}"]`);
+                const prevCard = findCardByName(oldName || '');
                 if (prevCard) prevCard.classList.remove('selected');
             }
 
@@ -510,7 +530,7 @@
                         l.setStyle({ weight: 6, dashArray: '6, 6' });
                     }
                 });
-                const card = document.querySelector(`.region-card[data-region-name="${CSS.escape(targetName || '')}"]`);
+                const card = findCardByName(targetName || '');
                 if (card) {
                     card.classList.add('selected');
                     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -663,7 +683,7 @@
             }
         });
 
-       function attachLayerEvents(layer) {
+        function attachLayerEvents(layer) {
             const popupContent = document.createElement('div');
             popupContent.style.textAlign = 'center';
             popupContent.style.display = 'flex';
@@ -1284,11 +1304,12 @@
             const dataToSave = [];
             drawnItems.eachLayer(layer => {
                 if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+                    const flat = getFlatLatLngs(layer);
                     dataToSave.push({
                         id: layer.regionId || ('region-' + Math.random()),
                         name: layer.regionName || 'Rejon',
                         color: layer.regionColor || '#3388ff',
-                        latLngs: layer.getLatLngs()
+                        latLngs: flat.map(ll => ({ lat: ll.lat, lng: ll.lng }))
                     });
                 }
             });
@@ -1398,7 +1419,7 @@
             const workdays = parseInt(workdaysCountEl.innerText) || 0;
 
             const exportData = Object.keys(groups).map(name => {
-                const card = document.querySelector(`.region-card[data-region-name="${CSS.escape(name)}"]`);
+                const card = findCardByName(name);
                 const pointCount = card ? parseInt(card.querySelector('.point-count').innerText) || 0 : 0;
                 const pointPerDay = workdays > 0 ? Math.round(pointCount / workdays) : 0;
 
@@ -1433,7 +1454,7 @@
                 const hexColor = layer.regionColor || "#3388ff";
                 const kmlColor = hexToKmlColor(hexColor);
 
-                const latLngs = layer.getLatLngs()[0];
+                const latLngs = getFlatLatLngs(layer);
                 let coordsString = "";
                 
                 latLngs.forEach(ll => {
