@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Konstruktor rejonów</title>
+    <title>Mapa Rejonów - Edycja KML, KMZ, XLSX</title>
     
     <!-- Leaflet & Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -97,6 +97,10 @@
             width: 100%; font-weight: bold; padding: 6px 10px; border: none;
             border-radius: 4px; cursor: pointer; font-size: 12px;
         }
+        .btn-undo { background: #6c757d; color: white; }
+        .btn-undo:hover { background: #5a6268; }
+        .btn-undo:disabled { background: #adb5bd; cursor: not-allowed; }
+
         .btn-export-kml { background: #27ae60; color: white; }
         .btn-export-kml:hover { background: #219653; }
 
@@ -181,6 +185,7 @@
         </div>
 
         <div class="actions-bar">
+            <button id="undoBtn" class="btn-action btn-undo" disabled>↩️ Cofnij (Ctrl+Z)</button>
             <button id="toggleEditBtn" class="btn-action btn-edit-toggle">✏️ Edytuj wszystkie rejony</button>
             <button id="saveEditBtn" class="btn-action btn-save-toggle">💾 Zapisz edycję</button>
             <button id="exportXlsxBtn" class="btn-action btn-export-xlsx">📊 Eksportuj podsumowanie (XLSX)</button>
@@ -237,8 +242,83 @@
         let showOnlyUnassigned = false;
         const toggleEditBtn = document.getElementById('toggleEditBtn');
         const saveEditBtn = document.getElementById('saveEditBtn');
+        const undoBtn = document.getElementById('undoBtn');
         const processedFilesSet = new Set();
         let allMarkers = [];
+
+        // System historii akcji (Undo)
+        const undoStack = [];
+        const MAX_UNDO = 30;
+
+        function recordState() {
+            const snapshot = [];
+            drawnItems.eachLayer(layer => {
+                if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+                    snapshot.push({
+                        name: layer.regionName || 'Rejon',
+                        color: layer.regionColor || '#3388ff',
+                        latLngs: layer.getLatLngs()
+                    });
+                }
+            });
+
+            undoStack.push(snapshot);
+            if (undoStack.length > MAX_UNDO) {
+                undoStack.shift();
+            }
+            updateUndoBtnState();
+        }
+
+        function undoLastAction() {
+            if (undoStack.length === 0) return;
+
+            if (isEditing) {
+                drawnItems.eachLayer(layer => disableLayerEditing(layer));
+                isEditing = false;
+                saveEditBtn.style.display = 'none';
+                toggleEditBtn.style.display = 'block';
+            }
+
+            const previousState = undoStack.pop();
+            drawnItems.clearLayers();
+            selectRegion(null);
+
+            previousState.forEach(item => {
+                const polygonLayer = L.polygon(item.latLngs, {
+                    color: item.color,
+                    fillColor: item.color,
+                    fillOpacity: 0.4,
+                    weight: 3
+                });
+
+                drawnItems.addLayer(polygonLayer);
+                polygonLayer.regionColor = item.color;
+                polygonLayer.regionName = item.name;
+                attachLayerEvents(polygonLayer);
+            });
+
+            rebuildRegionsListUI();
+            recalculateAllStats();
+            saveToLocalStorage();
+            updateUndoBtnState();
+        }
+
+        function updateUndoBtnState() {
+            undoBtn.disabled = undoStack.length === 0;
+        }
+
+        undoBtn.addEventListener('click', undoLastAction);
+
+        // Skrót klawiszowy Ctrl+Z / Cmd+Z
+        window.addEventListener('keydown', (e) => {
+            const activeEl = document.activeElement;
+            const isEditingText = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !isEditingText) {
+                e.preventDefault();
+                undoLastAction();
+            }
+        });
 
         function getEasterSunday(year) {
             const a = year % 19;
@@ -344,12 +424,11 @@
         monthSelect.addEventListener('change', updateWorkdaysDisplay);
         yearSelect.addEventListener('change', updateWorkdaysDisplay);
 
-        // Tworzenie mniejszych punktów w postaci CircleMarker
         function createInteractiveMarker(lat, lng, title) {
             const marker = L.circleMarker([lat, lng], {
-                radius: 4,          // Mały rozmiar punktu (promień 4px)
-                fillColor: "#7f8c8d",// Domyślny kolor dla punktów nieprzypisanych
-                color: "#2c3e50",    // Kolor obramowania
+                radius: 4,
+                fillColor: "#7f8c8d",
+                color: "#2c3e50",
                 weight: 1,
                 opacity: 0.9,
                 fillOpacity: 0.8
@@ -437,6 +516,8 @@
                 return;
             }
 
+            recordState(); // Zapis stanu przed edycją węzłów
+
             isEditing = true;
             toggleEditBtn.style.display = 'none';
             saveEditBtn.style.display = 'block';
@@ -520,6 +601,8 @@
         let regionCounter = 1;
 
         map.on(L.Draw.Event.CREATED, function (e) {
+            recordState(); // Zapis stanu przed dodaniem nowego rejonu
+
             const layer = e.layer;
             drawnItems.addLayer(layer);
 
@@ -541,68 +624,68 @@
         });
 
         function attachLayerEvents(layer) {
-    const popupContent = document.createElement('div');
-    popupContent.style.textAlign = 'center';
-    popupContent.style.display = 'flex';
-    popupContent.style.flexDirection = 'column';
-    popupContent.style.gap = '4px';
+            const popupContent = document.createElement('div');
+            popupContent.style.textAlign = 'center';
+            popupContent.style.display = 'flex';
+            popupContent.style.flexDirection = 'column';
+            popupContent.style.gap = '4px';
 
-    // Przycisk edycji całego rejonu
-    const editAreaBtn = document.createElement('button');
-    editAreaBtn.className = 'btn-action btn-edit-toggle';
-    editAreaBtn.innerText = '✏️ Edytuj ten rejon';
-    editAreaBtn.style.padding = '4px 8px';
-    editAreaBtn.style.fontSize = '11px';
+            const editAreaBtn = document.createElement('button');
+            editAreaBtn.className = 'btn-action btn-edit-toggle';
+            editAreaBtn.innerText = '✏️ Edytuj ten rejon';
+            editAreaBtn.style.padding = '4px 8px';
+            editAreaBtn.style.fontSize = '11px';
 
-    editAreaBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        layer.closePopup();
-        
-        // Zaznaczamy rejon
-        selectRegion(layer);
+            editAreaBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                layer.closePopup();
+                
+                recordState();
 
-        // Uruchamiamy edycję dla wszystkich obszarów należących do tego rejonu
-        isEditing = true;
-        toggleEditBtn.style.display = 'none';
-        saveEditBtn.style.display = 'block';
+                selectRegion(layer);
 
-        const targetName = layer.regionName;
-        drawnItems.eachLayer(l => {
-            if (l.regionName === targetName) {
-                enableLayerEditing(l);
-            }
-        });
-    });
+                isEditing = true;
+                toggleEditBtn.style.display = 'none';
+                saveEditBtn.style.display = 'block';
 
-    // Przycisk usuwania obszaru
-    const deleteAreaBtn = document.createElement('button');
-    deleteAreaBtn.className = 'btn-delete-marker';
-    deleteAreaBtn.innerText = '🗑️ Usuń tylko ten obszar';
-    deleteAreaBtn.style.marginTop = '0';
+                const targetName = layer.regionName;
+                drawnItems.eachLayer(l => {
+                    if (l.regionName === targetName) {
+                        enableLayerEditing(l);
+                    }
+                });
+            });
 
-    deleteAreaBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        disableLayerEditing(layer);
-        drawnItems.removeLayer(layer);
-        
-        if (selectedLayer === layer) {
-            selectRegion(null);
+            const deleteAreaBtn = document.createElement('button');
+            deleteAreaBtn.className = 'btn-delete-marker';
+            deleteAreaBtn.innerText = '🗑️ Usuń tylko ten obszar';
+            deleteAreaBtn.style.marginTop = '0';
+
+            deleteAreaBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                recordState();
+
+                disableLayerEditing(layer);
+                drawnItems.removeLayer(layer);
+                
+                if (selectedLayer === layer) {
+                    selectRegion(null);
+                }
+
+                rebuildRegionsListUI();
+                recalculateAllStats();
+                saveToLocalStorage();
+            });
+
+            popupContent.appendChild(editAreaBtn);
+            popupContent.appendChild(deleteAreaBtn);
+            layer.bindPopup(popupContent);
+
+            layer.on('click', function (e) {
+                L.DomEvent.stopPropagation(e);
+                selectRegion(layer);
+            });
         }
-
-        rebuildRegionsListUI();
-        recalculateAllStats();
-        saveToLocalStorage();
-    });
-
-    popupContent.appendChild(editAreaBtn);
-    popupContent.appendChild(deleteAreaBtn);
-    layer.bindPopup(popupContent);
-
-    layer.on('click', function (e) {
-        L.DomEvent.stopPropagation(e);
-        selectRegion(layer);
-    });
-}
 
         const fileInput = document.getElementById('fileInput');
         const processFilesBtn = document.getElementById('processFilesBtn');
@@ -658,6 +741,8 @@
                 alert('Najpierw wybierz pliki z dysku!');
                 return;
             }
+
+            recordState();
 
             processFilesBtn.disabled = true;
             let totalPolygons = 0;
@@ -947,7 +1032,6 @@
             return newMarkers.length;
         }
 
-        // Przypisywanie kolorów rejonu do punktów wewnątrz nich
         function recalculateAllStats() {
             const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
             
@@ -976,7 +1060,7 @@
                     if (turf.booleanPointInPolygon(turfPoint, pl.geoJSON)) {
                         matchedNames.add(pl.name);
                         isInsideAny = true;
-                        matchedColor = pl.color; // Przechwytujemy kolor rejonu
+                        matchedColor = pl.color;
                     }
                 });
 
@@ -986,7 +1070,6 @@
 
                 marker.isAssigned = isInsideAny;
 
-                // Ustawianie koloru punktu (kolor rejonu lub szary nieprzypisany)
                 if (isInsideAny && matchedColor) {
                     marker.setStyle({ fillColor: matchedColor, color: '#111111' });
                 } else {
@@ -1107,6 +1190,7 @@
             });
 
             const titleInput = card.querySelector('.region-title-input');
+            titleInput.addEventListener('focus', () => recordState());
             titleInput.addEventListener('change', () => {
                 const newName = titleInput.value.trim() || 'Bez nazwy';
                 groupLayers.forEach(l => {
@@ -1118,6 +1202,7 @@
             });
 
             const colorPicker = card.querySelector('.color-picker');
+            colorPicker.addEventListener('click', () => recordState());
             colorPicker.addEventListener('input', (evt) => {
                 const newColor = evt.target.value;
                 groupLayers.forEach(l => {
@@ -1125,7 +1210,7 @@
                     l.setStyle({ color: newColor, fillColor: newColor });
                 });
                 card.style.borderLeftColor = newColor;
-                recalculateAllStats(); // Odświeża kolory punktów w rejonie
+                recalculateAllStats();
                 saveToLocalStorage();
             });
 
@@ -1138,6 +1223,8 @@
 
             card.querySelector('.btn-delete').addEventListener('click', (e) => {
                 e.stopPropagation();
+                recordState();
+
                 if (selectedLayer && selectedLayer.regionName === name) selectRegion(null);
                 groupLayers.forEach(l => drawnItems.removeLayer(l));
                 card.remove();
@@ -1207,6 +1294,8 @@
 
         document.getElementById('resetStorageBtn').addEventListener('click', () => {
             if (confirm('Czy na pewno chcesz wyczyścić wszystkie punkty na mapie oraz narysowane rejony? Ta operacja jest nieodwracalna.')) {
+                recordState();
+
                 localStorage.removeItem('saved_map_regions');
                 localStorage.removeItem('saved_map_month');
                 localStorage.removeItem('saved_map_year');
