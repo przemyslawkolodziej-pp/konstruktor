@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Konstruktor Rejonów</title>
+    <title>Mapa Rejonów - Edycja KML, KMZ, XLSX</title>
     
     <!-- Leaflet & Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -149,19 +149,6 @@
         }
         .btn-delete-marker:hover { background: #c0392b; }
 
-        .custom-point-pin {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            border: 2px solid #2c3e50;
-            background-color: #7f8c8d;
-            box-shadow: 0 0 3px rgba(0,0,0,0.5);
-            cursor: grab;
-        }
-        .custom-point-pin:active {
-            cursor: grabbing;
-        }
-
         #map { flex: 1; height: 100%; }
         .status-text { font-size: 10px; color: #bdc3c7; margin-top: 4px; }
     </style>
@@ -229,7 +216,7 @@
     <!-- Biblioteki JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/Leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -250,16 +237,7 @@
         const drawControl = new L.Control.Draw({
             edit: false,
             draw: {
-                polygon: { 
-                    allowIntersection: false, 
-                    showArea: true,
-                    snapDistance: 20,
-                    guidelineDistance: 15,
-                    drawError: {
-                        color: '#e1e100',
-                        message: '<strong>Linie nie mogą się przecinać!</strong>'
-                    }
-                },
+                polygon: { allowIntersection: false, showArea: true },
                 rectangle: true,
                 polyline: false, circle: false, marker: false, circlemarker: false
             }
@@ -476,32 +454,18 @@
         monthSelect.addEventListener('change', updateWorkdaysDisplay);
         yearSelect.addEventListener('change', updateWorkdaysDisplay);
 
-        function createPointIcon(color = "#7f8c8d") {
-            return L.divIcon({
-                className: 'custom-point-wrapper',
-                html: `<div class="custom-point-pin" style="background-color: ${color};"></div>`,
-                iconSize: [12, 12],
-                iconAnchor: [6, 6]
-            });
-        }
-
         function createInteractiveMarker(lat, lng, title) {
-            const marker = L.marker([lat, lng], {
-                draggable: true,
-                icon: createPointIcon("#7f8c8d")
+            const marker = L.circleMarker([lat, lng], {
+                radius: 4,
+                fillColor: "#7f8c8d",
+                color: "#2c3e50",
+                weight: 1,
+                opacity: 0.9,
+                fillOpacity: 0.8
             });
 
             marker.markerTitle = title;
             
-            marker.on('dragstart', () => {
-                recordState();
-            });
-
-            marker.on('dragend', () => {
-                recalculateAllStats();
-                saveMarkersToLocalStorage();
-            });
-
             const popupContainer = document.createElement('div');
             popupContainer.innerHTML = `<b>${escapeXml(title)}</b><br>`;
 
@@ -677,102 +641,25 @@
         let regionCounter = 1;
 
         map.on(L.Draw.Event.CREATED, function (e) {
-    recordState();
+            recordState();
 
-    const layer = e.layer;
+            const layer = e.layer;
+            drawnItems.addLayer(layer);
 
-    if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
-        let assignedColor = "#3388ff";
-        let assignedName = `Rejon ${regionCounter++}`;
+            if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+                const defaultColor = "#3388ff";
+                layer.setStyle({ color: defaultColor, fillColor: defaultColor, fillOpacity: 0.35, weight: 3 });
 
-        // 1. Pobieramy czysty GeoJSON nowej warstwy
-        let newGeoJSON;
-        try {
-            newGeoJSON = layer.toGeoJSON();
-            // Normalizacja geometrii dla Turf.js
-            if (turf.cleanCoords) newGeoJSON = turf.cleanCoords(newGeoJSON);
-        } catch (err) {
-            console.error("Błąd konwersji nowej warstwy na GeoJSON:", err);
-        }
-
-        let matchedExistingLayer = null;
-
-        // 2. Przeszukujemy istniejące warstwy ZANIM dodamy nową do drawnItems
-        if (newGeoJSON) {
-            drawnItems.eachLayer(existingLayer => {
-                if (!matchedExistingLayer && (existingLayer instanceof L.Polygon || existingLayer instanceof L.Rectangle)) {
-                    try {
-                        let existingGeoJSON = existingLayer.toGeoJSON();
-                        if (turf.cleanCoords) existingGeoJSON = turf.cleanCoords(existingGeoJSON);
-
-                        // Sprawdzanie przecinania lub zawierania (Turf.js)
-                        const intersects = turf.booleanIntersect(newGeoJSON, existingGeoJSON);
-                        const containsNew = turf.booleanContains(existingGeoJSON, newGeoJSON);
-                        const containsExisting = turf.booleanContains(newGeoJSON, existingGeoJSON);
-
-                        if (intersects || containsNew || containsExisting) {
-                            matchedExistingLayer = existingLayer;
-                        }
-                    } catch (err) {
-                        console.warn("Błąd sprawdzania Turf.js dla warstwy:", err);
-                    }
-                }
-            });
-        }
-
-        // 3. Dodajemy nową warstwę do grupy drawnItems dopiero po weryfikacji
-        drawnItems.addLayer(layer);
-
-        // 4. Jeśli wykryto nakładanie – natychmiast wywołujemy prompt/confirm
-        if (matchedExistingLayer) {
-            const existingName = matchedExistingLayer.regionName || "Istniejący rejon";
-            const existingColor = matchedExistingLayer.regionColor || "#3388ff";
-
-            // Krótkie opóźnienie (10ms) uwalnia wątek renderowania rysowania w Leaflet
-            setTimeout(() => {
-                const confirmJoin = window.confirm(`Narysowany obszar nachodzi na rejon "${existingName}".\n\nCzy chcesz włączyć go do rejonu "${existingName}"?`);
+                const regionName = `Rejon ${regionCounter++}`;
+                layer.regionColor = defaultColor;
+                layer.regionName = regionName;
                 
-                if (confirmJoin) {
-                    assignedName = existingName;
-                    assignedColor = existingColor;
-                }
+                attachLayerEvents(layer);
+                rebuildRegionsListUI();
+                selectRegion(layer);
 
-                applyLayerSettings(layer, assignedName, assignedColor);
-            }, 10);
-        } else {
-            applyLayerSettings(layer, assignedName, assignedColor);
-        }
-    }
-});
-
-// Pomocnicza funkcja przypisująca styl i zdarzenia do warstwy
-function applyLayerSettings(layer, name, color) {
-    layer.setStyle({
-        color: color,
-        fillColor: color,
-        fillOpacity: 0.35,
-        weight: 3
-    });
-    layer.regionColor = color;
-    layer.regionName = name;
-
-    attachLayerEvents(layer);
-    rebuildRegionsListUI();
-    selectRegion(layer);
-    recalculateAllStats();
-    saveToLocalStorage();
-}, 50);
-                } else {
-                    layer.setStyle({ color: assignedColor, fillColor: assignedColor, fillOpacity: 0.35, weight: 3 });
-                    layer.regionColor = assignedColor;
-                    layer.regionName = assignedName;
-                    
-                    attachLayerEvents(layer);
-                    rebuildRegionsListUI();
-                    selectRegion(layer);
-                    recalculateAllStats();
-                    saveToLocalStorage();
-                }
+                recalculateAllStats();
+                saveToLocalStorage();
             }
         });
 
@@ -1219,9 +1106,9 @@ function applyLayerSettings(layer, name, color) {
                 marker.isAssigned = isInsideAny;
 
                 if (isInsideAny && matchedColor) {
-                    marker.setIcon(createPointIcon(matchedColor));
+                    marker.setStyle({ fillColor: matchedColor, color: '#111111' });
                 } else {
-                    marker.setIcon(createPointIcon("#7f8c8d"));
+                    marker.setStyle({ fillColor: '#7f8c8d', color: '#2c3e50' });
                     unassignedCount++;
                 }
             });
@@ -1341,22 +1228,9 @@ function applyLayerSettings(layer, name, color) {
             titleInput.addEventListener('focus', () => recordState());
             titleInput.addEventListener('change', () => {
                 const newName = titleInput.value.trim() || 'Bez nazwy';
-                
-                let targetColor = null;
-                drawnItems.eachLayer(l => {
-                    if (l.regionName === newName && !groupLayers.includes(l)) {
-                        targetColor = l.regionColor;
-                    }
-                });
-
                 groupLayers.forEach(l => {
                     l.regionName = newName;
-                    if (targetColor) {
-                        l.regionColor = targetColor;
-                        l.setStyle({ color: targetColor, fillColor: targetColor });
-                    }
                 });
-
                 rebuildRegionsListUI();
                 recalculateAllStats();
                 saveToLocalStorage();
