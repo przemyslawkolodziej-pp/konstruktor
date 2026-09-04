@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa Rejonów - Edycja KML, KMZ, XLSX</title>
+    <title>Konstruktor rejonów</title>
     
     <!-- Leaflet & Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -475,6 +475,7 @@
                 markersClusterGroup.removeLayer(marker);
                 allMarkers = allMarkers.filter(m => m !== marker);
                 recalculateAllStats();
+                saveMarkersToLocalStorage();
             });
 
             popupContainer.appendChild(deleteBtn);
@@ -1271,6 +1272,15 @@
             return card;
         }
 
+        function saveMarkersToLocalStorage() {
+            const markersData = allMarkers.map(m => ({
+                lat: m.getLatLng().lat,
+                lng: m.getLatLng().lng,
+                title: m.markerTitle || 'Punkt'
+            }));
+            localStorage.setItem('saved_map_markers', JSON.stringify(markersData));
+        }
+
         function saveToLocalStorage() {
             const dataToSave = [];
             drawnItems.eachLayer(layer => {
@@ -1286,6 +1296,8 @@
             localStorage.setItem('saved_map_regions', JSON.stringify(dataToSave));
             localStorage.setItem('saved_map_month', monthSelect.value);
             localStorage.setItem('saved_map_year', yearSelect.value);
+
+            saveMarkersToLocalStorage();
         }
 
         function loadFromLocalStorage() {
@@ -1294,34 +1306,52 @@
             if (rawMonth) monthSelect.value = rawMonth;
             if (rawYear) yearSelect.value = rawYear;
 
-            const raw = localStorage.getItem('saved_map_regions');
-            if (!raw) {
-                updateWorkdaysDisplay();
-                return;
-            }
+            const rawRegions = localStorage.getItem('saved_map_regions');
+            if (rawRegions) {
+                try {
+                    const regions = JSON.parse(rawRegions);
+                    regions.forEach(r => {
+                        const polygonLayer = L.polygon(r.latLngs, {
+                            color: r.color,
+                            fillColor: r.color,
+                            fillOpacity: 0.4,
+                            weight: 3
+                        });
 
-            try {
-                const regions = JSON.parse(raw);
-                regions.forEach(r => {
-                    const polygonLayer = L.polygon(r.latLngs, {
-                        color: r.color,
-                        fillColor: r.color,
-                        fillOpacity: 0.4,
-                        weight: 3
+                        drawnItems.addLayer(polygonLayer);
+                        polygonLayer.regionColor = r.color;
+                        polygonLayer.regionName = r.name;
+                        attachLayerEvents(polygonLayer);
                     });
 
-                    drawnItems.addLayer(polygonLayer);
-                    polygonLayer.regionColor = r.color;
-                    polygonLayer.regionName = r.name;
-                    attachLayerEvents(polygonLayer);
-                });
-
-                if (regions.length > 0) {
-                    rebuildRegionsListUI();
-                    map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
+                    if (regions.length > 0) {
+                        rebuildRegionsListUI();
+                    }
+                } catch (err) {
+                    console.error("Błąd wczytywania rejonów z localStorage:", err);
                 }
-            } catch (err) {
-                console.error("Błąd wczytywania z localStorage:", err);
+            }
+
+            const rawMarkers = localStorage.getItem('saved_map_markers');
+            if (rawMarkers) {
+                try {
+                    const loadedMarkers = JSON.parse(rawMarkers);
+                    const newMarkers = [];
+                    loadedMarkers.forEach(pm => {
+                        const m = createInteractiveMarker(pm.lat, pm.lng, pm.title);
+                        newMarkers.push(m);
+                        allMarkers.push(m);
+                    });
+                    markersClusterGroup.addLayers(newMarkers);
+                } catch (err) {
+                    console.error("Błąd wczytywania punktów z localStorage:", err);
+                }
+            }
+
+            if (drawnItems.getLayers().length > 0) {
+                map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
+            } else if (markersClusterGroup.getLayers().length > 0) {
+                map.fitBounds(markersClusterGroup.getBounds(), { padding: [30, 30] });
             }
 
             updateWorkdaysDisplay();
@@ -1332,6 +1362,7 @@
                 recordState();
 
                 localStorage.removeItem('saved_map_regions');
+                localStorage.removeItem('saved_map_markers');
                 localStorage.removeItem('saved_map_month');
                 localStorage.removeItem('saved_map_year');
                 drawnItems.clearLayers();
