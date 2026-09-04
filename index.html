@@ -954,29 +954,7 @@
                     pointPerDayEl.innerText = perDay;
                 }
 
-                let hasOverlap = false;
-                const thisNameLayers = preparedLayers.filter(pl => pl.name === name);
-                const otherNameLayers = preparedLayers.filter(pl => pl.name !== name);
-
-                for (let tLayer of thisNameLayers) {
-                    for (let oLayer of otherNameLayers) {
-                        const intersection = turf.intersect(tLayer.geoJSON, oLayer.geoJSON);
-                        if (intersection) {
-                            hasOverlap = true;
-                            break;
-                        }
-                    }
-                    if (hasOverlap) break;
-                }
-
-                const badge = card.querySelector('.overlap-badge');
-                if (hasOverlap) {
-                    card.classList.add('overlap-warning');
-                    if (badge) badge.style.display = 'block';
-                } else {
-                    card.classList.remove('overlap-warning');
-                    if (badge) badge.style.display = 'none';
-                }
+                
             });
 
             document.getElementById('unassignedCount').innerText = unassignedCount;
@@ -1054,8 +1032,7 @@
                     <span>📅 Na dzień: <b class="point-per-day">0</b></span>
                     <span style="font-size: 9px; color: #888; flex-basis: 100%;">Obszarów: ${groupLayers.length}</span>
                 </div>
-                <div class="overlap-badge">⚠️ Rejon nachodzi na inny!</div>
-                <div class="region-controls">
+                             <div class="region-controls">
                     <div class="color-picker-wrapper">
                         <input type="color" class="color-picker" value="${color}">
                         <span>Kolor</span>
