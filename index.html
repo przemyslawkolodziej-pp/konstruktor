@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa Rejonów - Import KML z Przyskiem Załaduj</title>
+    <title>Mapa Rejonów - Import KML, KMZ, XLSX</title>
     
     <!-- Leaflet & Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -44,7 +44,7 @@
         .btn-process {
             width: 100%;
             margin-top: 10px;
-            padding: 9px;
+            padding: 10px;
             background: #3498db;
             color: white;
             font-weight: bold;
@@ -53,7 +53,7 @@
             cursor: pointer;
             font-size: 13px;
             transition: background 0.2s;
-            display: none; /* Domyślnie ukryty, pojawia się po wybraniu plików */
+            display: none;
         }
         .btn-process:hover { background: #2980b9; }
 
@@ -85,19 +85,12 @@
         .status-error { background: #e74c3c; color: #fff; }
         .status-empty { background: #e67e22; color: #fff; }
 
-        .file-detail {
-            font-size: 10px;
-            color: #bdc3c7;
-            margin-top: 3px;
-            word-break: break-all;
-        }
+        .file-detail { font-size: 10px; color: #bdc3c7; margin-top: 3px; word-break: break-all; }
 
         .actions-bar {
             padding: 10px 15px;
             background: #e9ecef;
             border-bottom: 1px solid #dee2e6;
-            display: flex;
-            gap: 8px;
         }
 
         .btn-export-kml {
@@ -110,15 +103,10 @@
             border-radius: 4px;
             cursor: pointer;
             font-size: 13px;
-            transition: background 0.2s;
         }
         .btn-export-kml:hover { background: #219653; }
 
-        #regionsList {
-            flex: 1;
-            overflow-y: auto;
-            padding: 15px;
-        }
+        #regionsList { flex: 1; overflow-y: auto; padding: 15px; }
 
         .region-card {
             background: white;
@@ -128,79 +116,24 @@
             margin-bottom: 12px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             border-left: 5px solid #3388ff;
-            transition: all 0.2s ease;
         }
 
-        .region-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
+        .region-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .region-title-input { font-weight: bold; border: 1px solid transparent; padding: 4px 6px; border-radius: 4px; width: 100%; font-size: 14px; }
+        .region-title-input:hover, .region-title-input:focus { border-color: #ccc; background: #fff; }
+        .region-stats { font-size: 13px; color: #555; margin-bottom: 10px; background: #f1f3f5; padding: 6px 10px; border-radius: 4px; }
+        .region-controls { display: flex; gap: 8px; align-items: center; }
+        .color-picker-wrapper { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #666; }
+        .color-picker { border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; background: none; }
 
-        .region-title-input {
-            font-weight: bold;
-            border: 1px solid transparent;
-            padding: 4px 6px;
-            border-radius: 4px;
-            width: 100%;
-            font-size: 14px;
-        }
-        .region-title-input:hover, .region-title-input:focus {
-            border-color: #ccc;
-            background: #fff;
-        }
-
-        .region-stats {
-            font-size: 13px;
-            color: #555;
-            margin-bottom: 10px;
-            background: #f1f3f5;
-            padding: 6px 10px;
-            border-radius: 4px;
-        }
-
-        .region-controls {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .color-picker-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 12px;
-            color: #666;
-        }
-
-        .color-picker {
-            border: none;
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            cursor: pointer;
-            background: none;
-        }
-
-        .btn {
-            padding: 5px 10px;
-            font-size: 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
+        .btn { padding: 5px 10px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer; }
         .btn-zoom { background: #e9ecef; color: #495057; }
         .btn-zoom:hover { background: #dee2e6; }
         .btn-delete { background: #ffe3e3; color: #dc3545; margin-left: auto; }
         .btn-delete:hover { background: #ffc9c9; }
 
         #map { flex: 1; height: 100%; }
-
-        .progress-container { width: 100%; background: #455a64; height: 6px; border-radius: 3px; margin-top: 8px; display: none; overflow: hidden; }
-        .progress-bar { width: 0%; height: 100%; background: #2ecc71; transition: width 0.2s ease-in-out; }
-        .status-text { font-size: 11px; color: #bdc3c7; margin-top: 4px; }
+        .status-text { font-size: 11px; color: #bdc3c7; margin-top: 6px; }
     </style>
 </head>
 <body>
@@ -210,15 +143,8 @@
             <h3>Wczytaj Pliki KML / KMZ / XLSX</h3>
             <div class="file-upload-box">
                 <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.kml,.kmz" multiple>
-                
-                <!-- Przycisk do aktywacji wgrywania -->
                 <button id="processFilesBtn" class="btn-process">🚀 Załaduj pliki na mapę</button>
-
-                <div id="progressContainer" class="progress-container">
-                    <div id="progressBar" class="progress-bar"></div>
-                </div>
                 <div id="status" class="status-text"></div>
-
                 <div id="fileQueueBox"></div>
             </div>
         </div>
@@ -228,18 +154,19 @@
         </div>
 
         <div style="padding: 10px 15px 0 15px; font-size: 13px; font-weight: bold; color: #6c757d;">
-            NARYSOWANE / WCZYTANE REJONY:
+            WCZYTANE REJONY:
         </div>
 
         <div id="regionsList">
             <div id="emptyInfo" style="text-align: center; color: #adb5bd; margin-top: 30px; font-size: 13px;">
-                Brak narysowanych rejonów. Wczytaj pliki KML/KMZ lub narysuj obszar ręcznie.
+                Brak narysowanych rejonów. Wczytaj pliki lub narysuj obszar ręcznie.
             </div>
         </div>
     </div>
 
     <div id="map"></div>
 
+    <!-- Biblioteki JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
@@ -264,10 +191,7 @@
             draw: {
                 polygon: { allowIntersection: false, showArea: true },
                 rectangle: true,
-                polyline: false,
-                circle: false,
-                marker: false,
-                circlemarker: false
+                polyline: false, circle: false, marker: false, circlemarker: false
             }
         });
         map.addControl(drawControl);
@@ -276,7 +200,6 @@
         map.addLayer(markersClusterGroup);
 
         let regionCounter = 1;
-        let selectedFiles = []; // Przechowywanie wybranych plików
 
         map.on(L.Draw.Event.CREATED, function (e) {
             const layer = e.layer;
@@ -295,32 +218,323 @@
             }
         });
 
-        map.on(L.Draw.Event.EDITMOVE, function (e) { updateRegionCount(e.layer); });
-        map.on(L.Draw.Event.EDITED, function (e) {
-            e.layers.eachLayer(function (layer) { updateRegionCount(layer); });
-        });
-        map.on(L.Draw.DELETED, function (e) {
-            e.layers.eachLayer(function (layer) {
-                if (layer.regionId) {
-                    const card = document.getElementById(layer.regionId);
-                    if (card) card.remove();
-                }
+        // 1. Zdarzenie wyboru plików (podgląd w interfejsie)
+        const fileInput = document.getElementById('fileInput');
+        const processFilesBtn = document.getElementById('processFilesBtn');
+        const fileQueueBox = document.getElementById('fileQueueBox');
+
+        fileInput.addEventListener('change', function() {
+            const files = fileInput.files;
+            if (!files || files.length === 0) {
+                processFilesBtn.style.display = 'none';
+                fileQueueBox.style.display = 'none';
+                return;
+            }
+
+            fileQueueBox.innerHTML = '';
+            fileQueueBox.style.display = 'block';
+            processFilesBtn.style.display = 'block';
+
+            Array.from(files).forEach((file, index) => {
+                const sizeKb = (file.size / 1024).toFixed(1);
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'file-queue-item';
+                itemDiv.innerHTML = `
+                    <div class="file-header">
+                        <span class="file-name" title="${file.name}">${file.name}</span>
+                        <span class="file-status status-waiting" id="file-status-${index}">Oczekuje</span>
+                    </div>
+                    <div class="file-detail" id="file-detail-${index}">Rozmiar: ${sizeKb} KB</div>
+                `;
+                fileQueueBox.appendChild(itemDiv);
             });
-            checkEmptyInfo();
+
+            document.getElementById('status').innerText = `Wybrano ${files.length} plik(ów). Kliknij przycisk poniżej.`;
         });
 
-        function updateRegionCount(layer) {
-            if (layer.regionId) {
-                const count = countPointsInLayer(layer);
-                const card = document.getElementById(layer.regionId);
-                if (card) {
-                    card.querySelector('.point-count').innerText = count;
+        // 2. Obsługa przycisku "Załaduj pliki na mapę"
+        processFilesBtn.addEventListener('click', async function() {
+            const files = fileInput.files;
+            if (!files || files.length === 0) return;
+
+            processFilesBtn.disabled = true;
+            processFilesBtn.style.opacity = '0.5';
+
+            let totalPolygons = 0;
+            let totalMarkers = 0;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const statusBadge = document.getElementById(`file-status-${i}`);
+                const detailDiv = document.getElementById(`file-detail-${i}`);
+
+                if (statusBadge) {
+                    statusBadge.className = 'file-status status-processing';
+                    statusBadge.innerText = 'Przetwarzanie';
+                }
+
+                try {
+                    const result = await processSingleFile(file);
+                    totalPolygons += result.polygons;
+                    totalMarkers += result.markers;
+
+                    if (statusBadge) {
+                        if (result.polygons > 0 || result.markers > 0) {
+                            statusBadge.className = 'file-status status-done';
+                            statusBadge.innerText = 'Wgrano';
+                            detailDiv.innerText = `Obszary: ${result.polygons}, Punkty: ${result.markers}`;
+                        } else {
+                            statusBadge.className = 'file-status status-empty';
+                            statusBadge.innerText = 'Brak danych';
+                            detailDiv.innerText = 'Nie znaleziono poprawnych obiektów';
+                        }
+                    }
+                } catch (err) {
+                    console.error('Błąd pliku:', file.name, err);
+                    if (statusBadge) {
+                        statusBadge.className = 'file-status status-error';
+                        statusBadge.innerText = 'Błąd';
+                        detailDiv.innerText = err.message || 'Błąd odczytu';
+                    }
                 }
             }
+
+            if (drawnItems.getLayers().length > 0) {
+                map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
+            } else if (markersClusterGroup.getLayers().length > 0) {
+                map.fitBounds(markersClusterGroup.getBounds(), { padding: [30, 30] });
+            }
+
+            document.getElementById('status').innerText = `Koniec! Dodano ${totalPolygons} obszarów i ${totalMarkers} punktów.`;
+            processFilesBtn.disabled = false;
+            processFilesBtn.style.opacity = '1';
+        });
+
+        function processSingleFile(file) {
+            return new Promise((resolve, reject) => {
+                const name = file.name.toLowerCase();
+
+                if (name.endsWith('.kml')) {
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        try { resolve(parseAndRenderKmlString(e.target.result)); } 
+                        catch (err) { reject(err); }
+                    };
+                    reader.onerror = () => reject(new Error('Błąd odczytu pliku KML'));
+                    reader.readAsText(file);
+                } 
+                else if (name.endsWith('.kmz')) {
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        JSZip.loadAsync(e.target.result)
+                            .then(zip => {
+                                const kmlFile = Object.keys(zip.files).find(f => f.toLowerCase().endsWith('.kml'));
+                                if (!kmlFile) throw new Error('Brak pliku KML w archiwum KMZ');
+                                return zip.files[kmlFile].async('string');
+                            })
+                            .then(xmlStr => resolve(parseAndRenderKmlString(xmlStr)))
+                            .catch(reject);
+                    };
+                    reader.onerror = () => reject(new Error('Błąd odczytu pliku KMZ'));
+                    reader.readAsArrayBuffer(file);
+                } 
+                else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const json = XLSX.utils.sheet_to_json(sheet);
+                            const count = renderTableData(json);
+                            resolve({ polygons: 0, markers: count });
+                        } catch (err) { reject(err); }
+                    };
+                    reader.onerror = () => reject(new Error('Błąd odczytu pliku Excel'));
+                    reader.readAsArrayBuffer(file);
+                } 
+                else if (name.endsWith('.csv')) {
+                    Papa.parse(file, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: res => resolve({ polygons: 0, markers: renderTableData(res.data) }),
+                        error: err => reject(err)
+                    });
+                } 
+                else {
+                    reject(new Error('Nieobsługiwany format pliku'));
+                }
+            });
+        }
+
+        // Parsowanie struktur KML (w tym MultiGeometry oraz StyleMap)
+        function parseAndRenderKmlString(xmlString) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
+
+            if (xmlDoc.querySelector('parsererror')) {
+                throw new Error('Błąd składni XML/KML');
+            }
+
+            const placemarks = xmlDoc.querySelectorAll('Placemark');
+            let importedPolygons = 0;
+            const newMarkers = [];
+
+            placemarks.forEach(placemark => {
+                const nameEl = placemark.querySelector('name');
+                const regionName = nameEl ? nameEl.textContent.trim() : `Rejon ${regionCounter++}`;
+
+                let polyColor = '#3388ff';
+                const styleUrlEl = placemark.querySelector('styleUrl');
+                if (styleUrlEl) {
+                    const styleId = styleUrlEl.textContent.replace('#', '');
+                    let targetStyleId = styleId;
+                    
+                    const styleMapEl = xmlDoc.querySelector(`StyleMap[id="${styleId}"]`);
+                    if (styleMapEl) {
+                        const normalPair = Array.from(styleMapEl.querySelectorAll('Pair')).find(p => {
+                            const key = p.querySelector('key');
+                            return key && key.textContent.trim() === 'normal';
+                        });
+                        if (normalPair) {
+                            const pairUrl = normalPair.querySelector('styleUrl');
+                            if (pairUrl) targetStyleId = pairUrl.textContent.replace('#', '');
+                        }
+                    }
+
+                    const styleEl = xmlDoc.querySelector(`Style[id="${targetStyleId}"]`);
+                    if (styleEl) {
+                        const colorEl = styleEl.querySelector('PolyStyle > color, LineStyle > color');
+                        if (colorEl) polyColor = kmlColorToHex(colorEl.textContent);
+                    }
+                }
+
+                const polygons = placemark.querySelectorAll('Polygon');
+                polygons.forEach(polygon => {
+                    const coordsEl = polygon.querySelector('outerBoundaryIs LinearRing coordinates, coordinates');
+                    if (!coordsEl) return;
+
+                    const rawText = coordsEl.textContent.trim();
+                    const coordTokens = rawText.split(/\s+/);
+                    const latLngs = [];
+
+                    coordTokens.forEach(token => {
+                        const parts = token.split(',');
+                        if (parts.length >= 2) {
+                            const lng = parseFloat(parts[0]);
+                            const lat = parseFloat(parts[1]);
+                            if (!isNaN(lat) && !isNaN(lng)) {
+                                latLngs.push([lat, lng]);
+                            }
+                        }
+                    });
+
+                    if (latLngs.length >= 3) {
+                        const polygonLayer = L.polygon(latLngs, {
+                            color: polyColor,
+                            fillColor: polyColor,
+                            fillOpacity: 0.4
+                        });
+
+                        drawnItems.addLayer(polygonLayer);
+                        polygonLayer.regionColor = polyColor;
+
+                        const regionId = 'region-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
+                        const count = countPointsInLayer(polygonLayer);
+
+                        createRegionCard(regionId, regionName, count, polygonLayer, polyColor);
+                        importedPolygons++;
+                    }
+                });
+
+                const pointCoordsEl = placemark.querySelector('Point coordinates');
+                if (pointCoordsEl) {
+                    const parts = pointCoordsEl.textContent.trim().split(',');
+                    if (parts.length >= 2) {
+                        const lng = parseFloat(parts[0]);
+                        const lat = parseFloat(parts[1]);
+                        if (!isNaN(lat) && !isNaN(lng)) {
+                            newMarkers.push(L.marker([lat, lng]).bindPopup(`<b>${escapeXml(regionName)}</b>`));
+                        }
+                    }
+                }
+            });
+
+            if (newMarkers.length > 0) {
+                markersClusterGroup.addLayers(newMarkers);
+            }
+
+            return { polygons: importedPolygons, markers: newMarkers.length };
+        }
+
+        function kmlColorToHex(kmlColor) {
+            if (!kmlColor || kmlColor.length < 6) return '#3388ff';
+            const clean = kmlColor.trim();
+            let b, g, r;
+            if (clean.length === 8) {
+                b = clean.substring(2, 4);
+                g = clean.substring(4, 6);
+                r = clean.substring(6, 8);
+            } else {
+                b = clean.substring(0, 2);
+                g = clean.substring(2, 4);
+                r = clean.substring(4, 6);
+            }
+            return `#${r}${g}${b}`;
+        }
+
+        function escapeXml(unsafe) {
+            return unsafe.replace(/[<>&'"]/g, c => {
+                switch (c) {
+                    case '<': return '&lt;';
+                    case '>': return '&gt;';
+                    case '&': return '&amp;';
+                    case '\'': return '&apos;';
+                    case '"': return '&quot;';
+                }
+            });
+        }
+
+        function renderTableData(rows) {
+            const newMarkers = [];
+            rows.forEach(row => {
+                const latKey = Object.keys(row).find(k => ['lat', 'latitude', 'szerokosc', 'szerokość'].includes(k.trim().toLowerCase()));
+                const lonKey = Object.keys(row).find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość'].includes(k.trim().toLowerCase()));
+                const labelKey = Object.keys(row).find(k => ['adres', 'address', 'nazwa', 'name'].includes(k.trim().toLowerCase()));
+
+                if (latKey && lonKey) {
+                    const lat = parseFloat(row[latKey]);
+                    const lon = parseFloat(row[lonKey]);
+                    const label = labelKey ? row[labelKey] : 'Punkt';
+
+                    if (!isNaN(lat) && !isNaN(lon)) {
+                        newMarkers.push(L.marker([lat, lon]).bindPopup(`<b>${label}</b>`));
+                    }
+                }
+            });
+
+            markersClusterGroup.addLayers(newMarkers);
+            return newMarkers.length;
+        }
+
+        function countPointsInLayer(layer) {
+            const drawnGeoJSON = layer.toGeoJSON();
+            let count = 0;
+
+            markersClusterGroup.eachLayer(function(marker) {
+                const latLng = marker.getLatLng();
+                const turfPoint = turf.point([latLng.lng, latLng.lat]);
+                if (turf.booleanPointInPolygon(turfPoint, drawnGeoJSON)) {
+                    count++;
+                }
+            });
+            return count;
         }
 
         function createRegionCard(id, defaultName, count, layer, color) {
-            document.getElementById('emptyInfo').style.display = 'none';
+            const emptyInfo = document.getElementById('emptyInfo');
+            if (emptyInfo) emptyInfo.style.display = 'none';
+
             layer.regionId = id;
 
             const card = document.createElement('div');
@@ -345,16 +559,11 @@
                 </div>
             `;
 
-            const nameInput = card.querySelector('.region-title-input');
-            nameInput.addEventListener('change', (evt) => {
-                layer.bindPopup(`<b>${evt.target.value}</b><br>Punkty: ${countPointsInLayer(layer)}`);
-            });
-
             const colorPicker = card.querySelector('.color-picker');
             colorPicker.addEventListener('input', (evt) => {
                 const newColor = evt.target.value;
                 layer.regionColor = newColor;
-                layer.setStyle({ color: newColor, fillColor: newColor, fillOpacity: 0.35 });
+                layer.setStyle({ color: newColor, fillColor: newColor, fillOpacity: 0.4 });
                 card.style.borderLeftColor = newColor;
             });
 
@@ -365,326 +574,9 @@
             card.querySelector('.btn-delete').addEventListener('click', () => {
                 drawnItems.removeLayer(layer);
                 card.remove();
-                checkEmptyInfo();
             });
 
             document.getElementById('regionsList').appendChild(card);
-        }
-
-        function countPointsInLayer(layer) {
-            const drawnGeoJSON = layer.toGeoJSON();
-            let count = 0;
-
-            markersClusterGroup.eachLayer(function(marker) {
-                const latLng = marker.getLatLng();
-                const turfPoint = turf.point([latLng.lng, latLng.lat]);
-                if (turf.booleanPointInPolygon(turfPoint, drawnGeoJSON)) {
-                    count++;
-                }
-            });
-            return count;
-        }
-
-        function checkEmptyInfo() {
-            if (document.querySelectorAll('.region-card').length === 0) {
-                document.getElementById('emptyInfo').style.display = 'block';
-            }
-        }
-
-        // ELEMENTY INTERFEJSU PLIKÓW
-        const fileInput = document.getElementById('fileInput');
-        const processFilesBtn = document.getElementById('processFilesBtn');
-        const fileQueueBox = document.getElementById('fileQueueBox');
-
-        // 1. KROK: Wybór plików podgląd na liście, aktywacja przycisku
-        fileInput.addEventListener('change', function(e) {
-            selectedFiles = Array.from(e.target.files);
-            if (selectedFiles.length === 0) {
-                processFilesBtn.style.display = 'none';
-                fileQueueBox.style.display = 'none';
-                return;
-            }
-
-            fileQueueBox.innerHTML = '';
-            fileQueueBox.style.display = 'block';
-            processFilesBtn.style.display = 'block';
-
-            selectedFiles.forEach((file, index) => {
-                const sizeKb = (file.size / 1024).toFixed(1);
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'file-queue-item';
-                itemDiv.id = `file-item-${index}`;
-                itemDiv.innerHTML = `
-                    <div class="file-header">
-                        <span class="file-name" title="${file.name}">${file.name}</span>
-                        <span class="file-status status-waiting" id="file-status-${index}">Gotowy</span>
-                    </div>
-                    <div class="file-detail" id="file-detail-${index}">Rozmiar: ${sizeKb} KB - kliknij "Załaduj pliki"</div>
-                `;
-                fileQueueBox.appendChild(itemDiv);
-            });
-
-            document.getElementById('status').innerText = `Wybrano ${selectedFiles.length} plik(ów). Kliknij przycisk poniżej.`;
-        });
-
-        // 2. KROK: Kliknięcie przycisku "Załaduj pliki" -> właściwe wczytywanie na mapę
-        processFilesBtn.addEventListener('click', async function() {
-            if (selectedFiles.length === 0) return;
-
-            processFilesBtn.disabled = true;
-            processFilesBtn.style.opacity = '0.6';
-
-            let totalPolygons = 0;
-            let totalMarkers = 0;
-
-            updateProgress(0, `Rozpoczynanie ładowania ${selectedFiles.length} plików...`);
-
-            for (let i = 0; i < selectedFiles.length; i++) {
-                const file = selectedFiles[i];
-                const statusBadge = document.getElementById(`file-status-${i}`);
-                const detailDiv = document.getElementById(`file-detail-${i}`);
-                
-                statusBadge.className = 'file-status status-processing';
-                statusBadge.innerText = 'Przetwarzanie';
-                detailDiv.innerText = 'Odczytywanie danych XML/KML...';
-
-                const percent = Math.round(((i + 1) / selectedFiles.length) * 100);
-                updateProgress(percent, `Wgrywanie pliku ${i + 1} z ${selectedFiles.length}`);
-
-                await new Promise(r => setTimeout(r, 60));
-
-                try {
-                    const result = await processSingleFile(file);
-                    totalPolygons += result.polygons;
-                    totalMarkers += result.markers;
-
-                    if (result.polygons > 0 || result.markers > 0) {
-                        statusBadge.className = 'file-status status-done';
-                        statusBadge.innerText = 'Zaimportowano';
-                        detailDiv.innerText = `Dodano: ${result.polygons} obszarów, ${result.markers} punktów.`;
-                    } else {
-                        statusBadge.className = 'file-status status-empty';
-                        statusBadge.innerText = 'Brak obiektów';
-                        detailDiv.innerText = 'Plik nie zawierał poprawnych Polygonów ani Pointów.';
-                    }
-                } catch (err) {
-                    console.error("Błąd przetwarzania:", file.name, err);
-                    statusBadge.className = 'file-status status-error';
-                    statusBadge.innerText = 'Błąd';
-                    detailDiv.innerText = `Błąd: ${err.message || 'Nieprawidłowa struktura pliku'}`;
-                }
-            }
-
-            updateProgress(100, `Gotowe! Łącznie dodano ${totalPolygons} obszarów i ${totalMarkers} punktów.`);
-
-            if (drawnItems.getLayers().length > 0) {
-                map.fitBounds(drawnItems.getBounds(), { padding: [40, 40] });
-            } else if (markersClusterGroup.getLayers().length > 0) {
-                map.fitBounds(markersClusterGroup.getBounds(), { padding: [40, 40] });
-            }
-
-            // Reset stanu wyboru
-            fileInput.value = '';
-            selectedFiles = [];
-            processFilesBtn.disabled = false;
-            processFilesBtn.style.opacity = '1';
-            processFilesBtn.style.display = 'none';
-        });
-
-        function processSingleFile(file) {
-            return new Promise((resolve, reject) => {
-                const fileName = file.name.toLowerCase();
-
-                if (fileName.endsWith('.kmz') || fileName.endsWith('.kml')) {
-                    handleKmlKmzFile(file, resolve, reject);
-                } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-                    const reader = new FileReader();
-                    reader.readAsArrayBuffer(file);
-                    reader.onload = function(evt) {
-                        try {
-                            const data = new Uint8Array(evt.target.result);
-                            const workbook = XLSX.read(data, { type: 'array' });
-                            const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                            const count = renderTableData(jsonData);
-                            resolve({ polygons: 0, markers: count });
-                        } catch(e) { reject(e); }
-                    };
-                    reader.onerror = reject;
-                } else if (fileName.endsWith('.csv')) {
-                    Papa.parse(file, {
-                        header: true,
-                        skipEmptyLines: true,
-                        complete: function(results) {
-                            const count = renderTableData(results.data);
-                            resolve({ polygons: 0, markers: count });
-                        },
-                        error: reject
-                    });
-                } else {
-                    reject(new Error("Nieobsługiwany format pliku."));
-                }
-            });
-        }
-
-        function handleKmlKmzFile(file, resolve, reject) {
-            const isKmz = file.name.toLowerCase().endsWith('.kmz');
-            const reader = new FileReader();
-
-            if (isKmz) {
-                reader.readAsArrayBuffer(file);
-                reader.onload = function(evt) {
-                    JSZip.loadAsync(evt.target.result).then(zip => {
-                        const kmlFile = Object.keys(zip.files).find(name => name.toLowerCase().endsWith('.kml'));
-                        if (kmlFile) return zip.files[kmlFile].async("string");
-                        else throw new Error("Archiwum KMZ nie zawiera pliku .kml");
-                    }).then(xmlStr => {
-                        const res = parseAndRenderKmlString(xmlStr);
-                        resolve(res);
-                    }).catch(reject);
-                };
-                reader.onerror = reject;
-            } else {
-                reader.readAsText(file);
-                reader.onload = function(evt) {
-                    try {
-                        const res = parseAndRenderKmlString(evt.target.result);
-                        resolve(res);
-                    } catch(e) { reject(e); }
-                };
-                reader.onerror = reject;
-            }
-        }
-
-        function parseAndRenderKmlString(xmlString) {
-            const parser = new DOMParser();
-            const kmlDoc = parser.parseFromString(xmlString, 'text/xml');
-            
-            const parserError = kmlDoc.querySelector('parsererror');
-            if (parserError) {
-                throw new Error("Uszkodzony składniowo plik XML/KML");
-            }
-
-            const placemarks = kmlDoc.querySelectorAll('Placemark, placemark');
-            const newMarkers = [];
-            let importedPolygonsCount = 0;
-
-            placemarks.forEach(placemark => {
-                const nameEl = placemark.querySelector('name, Name');
-                const name = nameEl ? nameEl.textContent.trim() : `Rejon KML ${regionCounter++}`;
-
-                const coordsElements = placemark.querySelectorAll('coordinates, Coordinates');
-
-                coordsElements.forEach(coordsEl => {
-                    const coordsText = coordsEl.textContent.trim();
-                    const rawCoords = coordsText.split(/\s+/);
-                    const latLngs = [];
-
-                    rawCoords.forEach(coordStr => {
-                        const parts = coordStr.split(',');
-                        if (parts.length >= 2) {
-                            const lng = parseFloat(parts[0]);
-                            const lat = parseFloat(parts[1]);
-                            if (!isNaN(lat) && !isNaN(lng)) {
-                                latLngs.push([lat, lng]);
-                            }
-                        }
-                    });
-
-                    if (latLngs.length >= 3) {
-                        let color = "#3388ff";
-                        const styleUrlEl = placemark.querySelector('styleUrl, StyleUrl');
-                        if (styleUrlEl) {
-                            const styleId = styleUrlEl.textContent.replace('#', '');
-                            const styleEl = kmlDoc.querySelector(`Style[id="${styleId}"], style[id="${styleId}"]`);
-                            if (styleEl) {
-                                const colorEl = styleEl.querySelector('PolyStyle color, polystyle color, LineStyle color, linestyle color');
-                                if (colorEl) color = kmlColorToHex(colorEl.textContent);
-                            }
-                        }
-
-                        const polygonLayer = L.polygon(latLngs, {
-                            color: color,
-                            fillColor: color,
-                            fillOpacity: 0.35
-                        });
-
-                        drawnItems.addLayer(polygonLayer);
-                        polygonLayer.regionColor = color;
-
-                        const regionId = 'region-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
-                        const count = countPointsInLayer(polygonLayer);
-
-                        createRegionCard(regionId, name, count, polygonLayer, color);
-                        importedPolygonsCount++;
-                    } 
-                    else if (latLngs.length === 1) {
-                        newMarkers.push(L.marker(latLngs[0]).bindPopup(`<b>${escapeXml(name)}</b>`));
-                    }
-                });
-            });
-
-            if (newMarkers.length > 0) {
-                markersClusterGroup.addLayers(newMarkers);
-            }
-
-            return { polygons: importedPolygonsCount, markers: newMarkers.length };
-        }
-
-        function kmlColorToHex(kmlColor) {
-            if (!kmlColor || kmlColor.length < 6) return "#3388ff";
-            const cleanColor = kmlColor.trim();
-            let b, g, r;
-            if (cleanColor.length === 8) {
-                b = cleanColor.substring(2, 4);
-                g = cleanColor.substring(4, 6);
-                r = cleanColor.substring(6, 8);
-            } else {
-                b = cleanColor.substring(0, 2);
-                g = cleanColor.substring(2, 4);
-                r = cleanColor.substring(4, 6);
-            }
-            return `#${r}${g}${b}`;
-        }
-
-        function escapeXml(unsafe) {
-            return unsafe.replace(/[<>&'"]/g, function (c) {
-                switch (c) {
-                    case '<': return '&lt;';
-                    case '>': return '&gt;';
-                    case '&': return '&amp;';
-                    case '\'': return '&apos;';
-                    case '"': return '&quot;';
-                }
-            });
-        }
-
-        function updateProgress(percent, text) {
-            const container = document.getElementById('progressContainer');
-            const bar = document.getElementById('progressBar');
-            const status = document.getElementById('status');
-            container.style.display = 'block';
-            bar.style.width = percent + '%';
-            status.innerText = text;
-        }
-
-        function renderTableData(rows) {
-            const newMarkers = [];
-            rows.forEach(row => {
-                const latKey = Object.keys(row).find(k => ['lat', 'latitude', 'szerokosc', 'szerokość'].includes(k.trim().toLowerCase()));
-                const lonKey = Object.keys(row).find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość'].includes(k.trim().toLowerCase()));
-                const labelKey = Object.keys(row).find(k => ['adres', 'address', 'nazwa', 'name'].includes(k.trim().toLowerCase()));
-
-                const lat = parseFloat(row[latKey]);
-                const lon = parseFloat(row[lonKey]);
-                const label = labelKey ? row[labelKey] : 'Punkt';
-
-                if (!isNaN(lat) && !isNaN(lon)) {
-                    newMarkers.push(L.marker([lat, lon]).bindPopup(`<b>${label}</b>`));
-                }
-            });
-
-            markersClusterGroup.addLayers(newMarkers);
-            return newMarkers.length;
         }
     </script>
 </body>
