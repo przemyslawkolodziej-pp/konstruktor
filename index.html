@@ -3,12 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa z KML i Rysowaniem Rejonów</title>
+    <title>Mapa z XLSX, CSV, KML i Rysowaniem Rejonów</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- Leaflet Draw CSS (Narzędzia do rysowania rejonów) -->
+    <!-- Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <!-- Marker Cluster CSS (dla wydajności 20k punktów) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     
     <style>
         body { margin: 0; padding: 0; font-family: sans-serif; }
@@ -23,7 +26,7 @@
             padding: 15px;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            width: 300px;
+            width: 320px;
         }
         .control-panel h4 { margin: 0 0 10px 0; font-size: 14px; }
         .control-panel input[type="file"] { width: 100%; margin-bottom: 8px; box-sizing: border-box; }
@@ -49,8 +52,8 @@
 <body>
 
     <div class="control-panel">
-        <h4>Wgraj plik KML / KMZ z dysku</h4>
-        <input type="file" id="fileInput" accept=".kml,.kmz">
+        <h4>Wgraj plik (XLSX, CSV, KML, KMZ)</h4>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.kml,.kmz">
         
         <div id="progressContainer" class="progress-container">
             <div id="progressBar" class="progress-bar"></div>
@@ -63,15 +66,17 @@
     <!-- Biblioteki JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <!-- Parser KML bez wymogu API Key -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://unpkg.com/leaflet-kml/L.KML.js"></script>
 
     <script>
         // 1. Inicjalizacja mapy
         const map = L.map('map').setView([52.237, 21.017], 6);
 
-        // 2. DARMOWE kafelki bez żadnych kluczy API (OpenStreetMap Standard)
+        // 2. Kafelki OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; OpenStreetMap contributors'
@@ -82,9 +87,7 @@
         map.addLayer(drawnItems);
 
         const drawControl = new L.Control.Draw({
-            edit: {
-                featureGroup: drawnItems
-            },
+            edit: { featureGroup: drawnItems },
             draw: {
                 polygon: true,
                 polyline: true,
@@ -96,50 +99,130 @@
         });
         map.addControl(drawControl);
 
-        // Zapisywanie narysowanych rejonów do warstwy
         map.on(L.Draw.Event.CREATED, function (event) {
             const layer = event.layer;
             drawnItems.addLayer(layer);
         });
 
-        // 4. Obsługa pliku KML/KMZ z dysku i Wskaźnik Postępu
+        // 4. Grupa klastrów dla punktów (odpowiada za płynność przy 20k obiektów)
+        const markersClusterGroup = L.markerClusterGroup({
+            chunkedLoading: true // Ładowanie porcjami bez ścinania interfejsu
+        });
+        map.addLayer(markersClusterGroup);
+
         let currentKmlLayer = null;
 
+        // 5. Obsługa wgrywania plików z dysku
         document.getElementById('fileInput').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
 
-            const progressContainer = document.getElementById('progressContainer');
-            const progressBar = document.getElementById('progressBar');
-            const status = document.getElementById('status');
-
-            progressContainer.style.display = 'block';
+            const fileName = file.name.toLowerCase();
             updateProgress(10, "Odczytywanie pliku z dysku...");
 
-            const reader = new FileReader();
-            const isKmz = file.name.toLowerCase().endsWith('.kmz');
+            // Czyszczenie poprzednich punktów z mapy
+            markersClusterGroup.clearLayers();
+            if (currentKmlLayer) map.removeLayer(currentKmlLayer);
 
-            // Postęp czytania pliku przez przeglądarkę
-            reader.onprogress = function(data) {
-                if (data.lengthComputable) {
-                    const progress = parseInt((data.loaded / data.total) * 40);
-                    updateProgress(progress, "Ładowanie bajtów z dysku...");
+            // A) Pliki Excel (.xlsx / .xls)
+            if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                const reader = new FileReader();
+                reader.readAsArrayBuffer(file);
+                reader.onload = function(evt) {
+                    updateProgress(40, "Parsowanie arkusza Excel...");
+                    setTimeout(() => {
+                        try {
+                            const data = new Uint8Array(evt.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheetName = workbook.SheetNames[0];
+                            const worksheet = workbook.Sheets[firstSheetName];
+                            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                            
+                            updateProgress(70, "Generowanie 20k punktów na mapie...");
+                            renderTableData(jsonData);
+                        } catch (err) {
+                            updateProgress(0, "Błąd pliku Excel: " + err.message);
+                        }
+                    }, 50);
+                };
+            }
+            // B) Pliki CSV
+            else if (fileName.endsWith('.csv')) {
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        updateProgress(70, "Generowanie punktów z CSV...");
+                        renderTableData(results.data);
+                    }
+                });
+            }
+            // C) Pliki KML / KMZ
+            else if (fileName.endsWith('.kmz') || fileName.endsWith('.kml')) {
+                handleKmlKmz(file);
+            }
+        });
+
+        // Funkcja przetwarzająca tabele (XLSX / CSV) na punkty
+        function renderTableData(rows) {
+            const newMarkers = [];
+
+            rows.forEach(row => {
+                // Automatyczne odnajdywanie nagłówków kolumn w arkuszu
+                const latKey = Object.keys(row).find(k => ['lat', 'latitude', 'szerokosc', 'szerokość'].includes(k.trim().toLowerCase()));
+                const lonKey = Object.keys(row).find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość'].includes(k.trim().toLowerCase()));
+                const labelKey = Object.keys(row).find(k => ['adres', 'address', 'nazwa', 'name', 'etykieta'].includes(k.trim().toLowerCase()));
+
+                const lat = parseFloat(row[latKey]);
+                const lon = parseFloat(row[lonKey]);
+                const label = labelKey ? row[labelKey] : 'Punkt bez nazwy';
+
+                if (!isNaN(lat) && !isNaN(lon)) {
+                    const marker = L.marker([lat, lon]);
+
+                    // Dymek z infomacją i opcją usunięcia
+                    const popupContent = document.createElement('div');
+                    popupContent.innerHTML = `
+                        <b>Adres / Nazwa:</b><br>${label}<br><br>
+                        <button class="delete-btn" style="background: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; width: 100%;">
+                            ❌ Usuń ten punkt
+                        </button>
+                    `;
+
+                    popupContent.querySelector('.delete-btn').addEventListener('click', function() {
+                        markersClusterGroup.removeLayer(marker);
+                    });
+
+                    marker.bindPopup(popupContent);
+                    newMarkers.push(marker);
                 }
-            };
+            });
+
+            // Dodanie wszystkich punktów naraz do klastra
+            markersClusterGroup.addLayers(newMarkers);
+
+            if (newMarkers.length > 0) {
+                map.fitBounds(markersClusterGroup.getBounds());
+                updateProgress(100, `Gotowe! Wczytano ${newMarkers.length} punktów.`);
+            } else {
+                updateProgress(0, "Nie odnaleziono kolumn ze współrzędnymi LAT i LONG w pliku.");
+            }
+        }
+
+        // Obsługa plików KML/KMZ (zachowana wsteczna kompatybilność)
+        function handleKmlKmz(file) {
+            const isKmz = file.name.toLowerCase().endsWith('.kmz');
+            const reader = new FileReader();
 
             if (isKmz) {
                 reader.readAsArrayBuffer(file);
                 reader.onload = function(evt) {
-                    updateProgress(50, "Rozpakowywanie pliku KMZ...");
-                    JSZip.loadAsync(evt.target.result).then(function(zip) {
+                    updateProgress(50, "Rozpakowywanie KMZ...");
+                    JSZip.loadAsync(evt.target.result).then(zip => {
                         const kmlFile = Object.keys(zip.files).find(name => name.toLowerCase().endsWith('.kml'));
-                        if (kmlFile) {
-                            return zip.files[kmlFile].async("string");
-                        } else {
-                            throw new Error("Brak pliku KML wewnątrz KMZ");
-                        }
-                    }).then(function(kmlText) {
-                        updateProgress(75, "Parsowanie struktury KML...");
+                        if (kmlFile) return zip.files[kmlFile].async("string");
+                        throw new Error("Brak pliku KML wewnątrz KMZ");
+                    }).then(kmlText => {
                         parseAndRenderKml(kmlText);
                     }).catch(err => {
                         updateProgress(0, "Błąd KMZ: " + err.message);
@@ -148,65 +231,53 @@
             } else {
                 reader.readAsText(file);
                 reader.onload = function(evt) {
-                    updateProgress(60, "Parsowanie kodu KML...");
                     parseAndRenderKml(evt.target.result);
                 };
             }
-        });
+        }
 
-        // 5. Renderowanie punktów KML na mapie z opcją usuwania
         function parseAndRenderKml(xmlString) {
-            if (currentKmlLayer) map.removeLayer(currentKmlLayer);
+            try {
+                const parser = new DOMParser();
+                const kmlDoc = parser.parseFromString(xmlString, 'text/xml');
+                const track = new L.KML(kmlDoc);
 
-            updateProgress(85, "Tworzenie obiektów na mapie...");
+                currentKmlLayer = track;
+                map.addLayer(currentKmlLayer);
 
-            setTimeout(() => {
-                try {
-                    const parser = new DOMParser();
-                    const kmlDoc = parser.parseFromString(xmlString, 'text/xml');
-                    const track = new L.KML(kmlDoc);
+                currentKmlLayer.eachLayer(function(layer) {
+                    if (layer instanceof L.Marker) {
+                        let name = layer.feature ? (layer.feature.properties.name || 'Punkt') : 'Punkt';
+                        let popupContent = document.createElement('div');
+                        popupContent.innerHTML = `
+                            <b>${name}</b><br><br>
+                            <button class="delete-btn" style="background: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; width: 100%;">
+                                ❌ Usuń ten punkt
+                            </button>
+                        `;
 
-                    currentKmlLayer = track;
-                    map.addLayer(currentKmlLayer);
+                        popupContent.querySelector('.delete-btn').addEventListener('click', function() {
+                            map.removeLayer(layer);
+                        });
 
-                    // Dodawanie możliwości usuwania pojedynczych punktów
-                    currentKmlLayer.eachLayer(function(layer) {
-                        if (layer instanceof L.Marker) {
-                            let name = layer.feature ? (layer.feature.properties.name || 'Punkt') : 'Punkt';
-                            
-                            let popupContent = document.createElement('div');
-                            popupContent.innerHTML = `
-                                <b>${name}</b><br><br>
-                                <button class="delete-btn" style="background: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; width: 100%;">
-                                    ❌ Usuń ten punkt
-                                </button>
-                            `;
-
-                            popupContent.querySelector('.delete-btn').addEventListener('click', function() {
-                                map.removeLayer(layer);
-                            });
-
-                            layer.bindPopup(popupContent);
-                        }
-                    });
-
-                    // Dopasowanie widoku mapy
-                    const bounds = track.getBounds();
-                    if (bounds.isValid()) {
-                        map.fitBounds(bounds);
+                        layer.bindPopup(popupContent);
                     }
+                });
 
-                    updateProgress(100, "Gotowe! Punkty wczytane.");
-                } catch (e) {
-                    updateProgress(0, "Błąd parsowania pliku KML.");
-                }
-            }, 100);
+                const bounds = track.getBounds();
+                if (bounds.isValid()) map.fitBounds(bounds);
+                updateProgress(100, "Gotowe! KML wczytany.");
+            } catch (e) {
+                updateProgress(0, "Błąd parsowania pliku KML.");
+            }
         }
 
         function updateProgress(percent, statusText) {
+            const progressContainer = document.getElementById('progressContainer');
             const progressBar = document.getElementById('progressBar');
             const status = document.getElementById('status');
             
+            progressContainer.style.display = 'block';
             progressBar.style.width = percent + '%';
             status.innerText = percent + '% - ' + statusText;
         }
