@@ -1,1665 +1,1143 @@
- <!DOCTYPE html>
-
+<!DOCTYPE html>
 <html lang="pl">
-
 <head>
-
     <meta charset="UTF-8">
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Mapa Rejonów - Edycja KML, KMZ, XLSX</title>
-
     
-
     <!-- Leaflet & Leaflet Draw CSS -->
-
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-
     <!-- Marker Cluster CSS -->
-
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-
     <!-- Leaflet Geocoder CSS -->
-
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
-
     
-
     <style>
-
         * { box-sizing: border-box; }
-
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; overflow: hidden; }
-
         
-
         #sidebar {
-
             width: 320px;
-
             height: 100%;
-
             background: #f8f9fa;
-
             border-right: 1px solid #dee2e6;
-
             display: flex;
-
             flex-direction: column;
-
             z-index: 1000;
-
             box-shadow: 2px 0 6px rgba(0,0,0,0.08);
-
         }
-
 
         .sidebar-header { padding: 10px 12px; background: #2c3e50; color: white; }
-
         .sidebar-header h3 { margin: 0 0 8px 0; font-size: 14px; }
 
-
         .file-upload-box { background: #34495e; padding: 8px; border-radius: 4px; }
-
         .file-upload-box input[type="file"] { width: 100%; color: white; font-size: 11px; cursor: pointer; }
 
-
         .btn-process {
-
             width: 100%; margin-top: 6px; padding: 6px 8px; background: #3498db;
-
             color: white; font-weight: bold; border: none; border-radius: 4px;
-
             cursor: pointer; font-size: 12px; transition: background 0.2s; display: block;
-
         }
-
         .btn-process:hover { background: #2980b9; }
-
         .btn-process:disabled { background: #7f8c8d; cursor: not-allowed; }
 
-
         .queue-toggle-header {
-
             margin-top: 6px; background: #243342; color: #ecf0f1; padding: 4px 6px;
-
             font-size: 10px; font-weight: bold; border-radius: 3px; cursor: pointer;
-
             display: flex; justify-content: space-between; align-items: center; user-select: none;
-
         }
-
         .queue-toggle-header:hover { background: #1a252f; }
 
-
         #fileQueueBox {
-
             background: #1a252f; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px;
-
             padding: 6px; max-height: 120px; overflow-y: auto; display: none;
-
         }
 
-
         .file-queue-item { display: flex; flex-direction: column; font-size: 10px; color: #ecf0f1; padding: 4px 0; border-bottom: 1px solid #3e5871; }
-
         .file-queue-item:last-child { border-bottom: none; }
-
         .file-header { display: flex; justify-content: space-between; align-items: center; }
-
         .file-name { font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; }
-
         .file-status { font-size: 9px; padding: 1px 4px; border-radius: 3px; font-weight: bold; }
-
         .status-waiting { background: #7f8c8d; color: #fff; }
-
         .status-processing { background: #f39c12; color: #fff; }
-
         .status-done { background: #2ecc71; color: #fff; }
-
         .status-skipped { background: #95a5a6; color: #fff; }
-
         .status-error { background: #e74c3c; color: #fff; }
-
         .status-empty { background: #e67e22; color: #fff; }
-
 
         .file-detail { font-size: 9px; color: #bdc3c7; margin-top: 2px; word-break: break-all; }
 
-
         .unassigned-bar {
-
             background: #fff3cd; color: #856404; padding: 6px 10px; border-bottom: 1px solid #ffeeba;
-
             font-size: 11px; font-weight: bold; display: flex; justify-content: space-between; align-items: center;
-
         }
-
         .btn-filter-unassigned {
-
             background: #856404; color: white; border: none; border-radius: 3px;
-
             padding: 2px 6px; font-size: 10px; cursor: pointer;
-
         }
-
         .btn-filter-unassigned:hover { background: #533f03; }
 
-
         .actions-bar {
-
             padding: 8px 12px; background: #e9ecef; border-bottom: 1px solid #dee2e6;
-
             display: flex; flex-direction: column; gap: 5px;
-
         }
-
 
         .btn-action {
-
             width: 100%; font-weight: bold; padding: 6px 10px; border: none;
-
             border-radius: 4px; cursor: pointer; font-size: 12px;
-
         }
-
         .btn-export-kml { background: #27ae60; color: white; }
-
         .btn-export-kml:hover { background: #219653; }
 
-
         .btn-export-xlsx { background: #1d6f42; color: white; }
-
         .btn-export-xlsx:hover { background: #144d2e; }
 
-
         .btn-edit-toggle { background: #f39c12; color: white; }
-
         .btn-edit-toggle:hover { background: #d35400; }
 
-
         .btn-save-toggle { background: #2980b9; color: white; display: none; }
-
         .btn-save-toggle:hover { background: #1c5980; }
 
-
         .btn-reset-storage { background: #e74c3c; color: white; font-size: 10px; padding: 3px 6px; border: none; border-radius: 3px; cursor: pointer; margin-left: auto; }
-
         .btn-reset-storage:hover { background: #c0392b; }
 
+        #regionsList { flex: 1; overflow-y: auto; padding: 6px 8px; }
 
-        #regionsList { flex: 1; overflow-y: auto; padding: 8px 12px; }
-
-
+        /* Kompaktowe karty na liście */
         .region-card {
-
-            background: white; border: 1px solid #e0e0e0; border-radius: 6px;
-
-            padding: 8px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-
+            background: white; border: 1px solid #e0e0e0; border-radius: 4px;
+            padding: 4px 6px; margin-bottom: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
             border-left: 4px solid #3388ff; cursor: pointer; transition: all 0.2s ease;
-
         }
-
         .region-card:hover { border-color: #aaa; }
-
         .region-card.selected { box-shadow: 0 0 0 2px #e67e22; background: #fffdf9; }
-
         .region-card.overlap-warning { border-color: #e74c3c !important; background: #fdf2f2; }
 
-
-        .region-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-
-        .region-title-input { font-weight: bold; border: 1px solid transparent; padding: 2px 4px; border-radius: 3px; width: 100%; font-size: 12px; }
-
+        .region-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+        .region-title-input { font-weight: bold; border: 1px solid transparent; padding: 1px 3px; border-radius: 3px; width: 100%; font-size: 11px; }
         .region-title-input:hover, .region-title-input:focus { border-color: #ccc; background: #fff; }
-
         
+        .region-stats { font-size: 10px; color: #555; margin-bottom: 3px; background: #f1f3f5; padding: 2px 4px; border-radius: 3px; display: flex; justify-content: space-between; }
+        .region-controls { display: flex; gap: 4px; align-items: center; }
+        .color-picker-wrapper { display: flex; align-items: center; gap: 2px; font-size: 10px; color: #666; }
+        .color-picker { border: none; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: none; padding: 0; }
 
-        .region-stats { font-size: 11px; color: #555; margin-bottom: 6px; background: #f1f3f5; padding: 4px 6px; border-radius: 3px; }
+        .overlap-badge { color: #d63031; font-size: 9px; font-weight: bold; display: none; margin-bottom: 2px; }
 
-        .region-controls { display: flex; gap: 6px; align-items: center; }
-
-        .color-picker-wrapper { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #666; }
-
-        .color-picker { border: none; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; background: none; padding: 0; }
-
-
-        .overlap-badge { color: #d63031; font-size: 10px; font-weight: bold; display: none; margin-top: 4px; }
-
-
-        .btn { padding: 3px 8px; font-size: 11px; border: none; border-radius: 3px; cursor: pointer; }
-
+        .btn { padding: 2px 5px; font-size: 10px; border: none; border-radius: 3px; cursor: pointer; }
         .btn-zoom { background: #e9ecef; color: #495057; }
-
         .btn-zoom:hover { background: #dee2e6; }
-
-        .btn-delete { background: #ffe3e3; color: #dc3545; margin-left: auto; padding: 3px 6px; }
-
+        .btn-delete { background: #ffe3e3; color: #dc3545; margin-left: auto; padding: 2px 5px; }
         .btn-delete:hover { background: #ffc9c9; }
 
-
         .btn-delete-marker {
-
             background: #e74c3c; color: white; border: none; padding: 4px 8px;
-
             font-size: 11px; border-radius: 3px; cursor: pointer; margin-top: 6px; width: 100%;
-
         }
-
         .btn-delete-marker:hover { background: #c0392b; }
 
-
         #map { flex: 1; height: 100%; }
-
         .status-text { font-size: 10px; color: #bdc3c7; margin-top: 4px; }
-
     </style>
-
 </head>
-
 <body>
 
-
     <div id="sidebar">
-
         <div class="sidebar-header">
-
             <h3>Wczytaj Pliki KML / KMZ / XLSX</h3>
-
             <div class="file-upload-box">
-
                 <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.kml,.kmz" multiple>
-
                 <button id="processFilesBtn" class="btn-process">🚀 Załaduj pliki na mapę</button>
-
                 <div id="status" class="status-text"></div>
-
                 
-
                 <div id="queueToggleHeader" class="queue-toggle-header" style="display: none;">
-
                     <span>LISTA PLIKÓW</span>
-
                     <span id="toggleIcon">▼</span>
-
                 </div>
-
                 <div id="fileQueueBox"></div>
-
             </div>
-
         </div>
-
 
         <div class="unassigned-bar">
-
             <span>Punktów nieprzypisanych: <b id="unassignedCount">0</b></span>
-
             <button id="toggleUnassignedBtn" class="btn-filter-unassigned">Pokaż tylko nieprzypisane</button>
-
         </div>
-
 
         <div class="actions-bar">
-
             <button id="toggleEditBtn" class="btn-action btn-edit-toggle">✏️ Edytuj wszystkie rejony</button>
-
             <button id="saveEditBtn" class="btn-action btn-save-toggle">💾 Zapisz edycję</button>
-
             <button id="exportXlsxBtn" class="btn-action btn-export-xlsx">📊 Eksportuj podsumowanie (XLSX)</button>
-
             <button id="exportKmlBtn" class="btn-action btn-export-kml">📥 Eksportuj rejony do KML</button>
-
         </div>
-
 
         <div style="padding: 8px 12px 0 12px; font-size: 11px; font-weight: bold; color: #6c757d; display: flex; align-items: center;">
-
-            <span>WCZYTANE REJONY:</span>
-
-            <button id="resetStorageBtn" class="btn-reset-storage" title="Usuwa zapamiętane rejony z przeglądarki">🧹 Wyczyść zapamiętane</button>
-
+            <span>REJONY:</span>
+            <button id="resetStorageBtn" class="btn-reset-storage" title="Usuwa wszystkie rejony i punkty">🧹 Wyczyść wszystko</button>
         </div>
-
 
         <div id="regionsList">
-
             <div id="emptyInfo" style="text-align: center; color: #adb5bd; margin-top: 20px; font-size: 12px;">
-
                 Brak narysowanych rejonów. Wczytaj pliki lub narysuj obszar ręcznie.
-
             </div>
-
         </div>
-
     </div>
-
 
     <div id="map"></div>
 
-
     <!-- Biblioteki JS -->
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-
     <script src="https://cdn.jsdelivr.net/npm/leaflet-snap@0.2.0/leaflet.snap.js"></script>
-
     <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.js"></script>
 
-
     <script>
-
         const map = L.map('map').setView([52.237, 21.017], 6);
 
-
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-
             maxZoom: 19,
-
             attribution: '&copy; OpenStreetMap contributors'
-
         }).addTo(map);
 
-
         const drawnItems = new L.FeatureGroup();
-
         map.addLayer(drawnItems);
 
-
         // Inicjalizacja Rysowania i Snappingu
-
         const drawControl = new L.Control.Draw({
-
             edit: false,
-
             draw: {
-
                 polygon: { allowIntersection: false, showArea: true, snapDistance: 15 },
-
                 rectangle: true,
-
                 polyline: false, circle: false, marker: false, circlemarker: false
-
             }
-
         });
-
         map.addControl(drawControl);
 
-
         let selectedLayer = null;
-
         let isEditing = false;
-
         let showOnlyUnassigned = false;
-
         const toggleEditBtn = document.getElementById('toggleEditBtn');
-
         const saveEditBtn = document.getElementById('saveEditBtn');
-
         const processedFilesSet = new Set();
-
         let allMarkers = [];
 
-
         // Tworzenie interaktywnego punktu (przesuwanie + usuwanie)
-
         function createInteractiveMarker(lat, lng, title) {
-
             const marker = L.marker([lat, lng], { draggable: true });
-
             
-
             const popupContainer = document.createElement('div');
-
             popupContainer.innerHTML = `<b>${escapeXml(title)}</b><br>`;
 
-
             const deleteBtn = document.createElement('button');
-
             deleteBtn.className = 'btn-delete-marker';
-
             deleteBtn.innerText = '🗑️ Usuń punkt';
-
             
-
             deleteBtn.addEventListener('click', () => {
-
                 markersClusterGroup.removeLayer(marker);
-
                 allMarkers = allMarkers.filter(m => m !== marker);
-
                 recalculateAllStats();
-
             });
-
 
             popupContainer.appendChild(deleteBtn);
-
             marker.bindPopup(popupContainer);
 
-
             // Przeliczanie przypisania punktu po zakończeniu przeciągania (dragend)
-
             marker.on('dragend', () => {
-
                 recalculateAllStats();
-
             });
 
-
             return marker;
-
         }
 
-
         function selectRegion(layer) {
-
             if (isEditing) saveCurrentEdits();
 
-
             if (selectedLayer) {
-
-                selectedLayer.setStyle({ weight: 3, dashArray: null });
-
-                const prevCard = document.getElementById(selectedLayer.regionId);
-
+                // Przywrócenie stylu dla wszystkich warstw o dotychczasowej nazwie
+                const oldName = selectedLayer.regionName;
+                drawnItems.eachLayer(l => {
+                    if (l.regionName === oldName) {
+                        l.setStyle({ weight: 3, dashArray: null });
+                    }
+                });
+                const prevCard = document.querySelector(`.region-card[data-region-name="${CSS.escape(oldName || '')}"]`);
                 if (prevCard) prevCard.classList.remove('selected');
-
             }
-
 
             selectedLayer = layer;
 
-
             if (selectedLayer) {
-
-                selectedLayer.setStyle({ weight: 6, dashArray: '6, 6' });
-
-                const card = document.getElementById(selectedLayer.regionId);
-
+                const targetName = selectedLayer.regionName;
+                drawnItems.eachLayer(l => {
+                    if (l.regionName === targetName) {
+                        l.setStyle({ weight: 6, dashArray: '6, 6' });
+                    }
+                });
+                const card = document.querySelector(`.region-card[data-region-name="${CSS.escape(targetName || '')}"]`);
                 if (card) {
-
                     card.classList.add('selected');
-
                     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
                 }
-
                 toggleEditBtn.innerText = '✏️ Edytuj zaznaczony rejon';
-
             } else {
-
                 toggleEditBtn.innerText = '✏️ Edytuj wszystkie rejony';
-
             }
-
         }
-
 
         toggleEditBtn.addEventListener('click', () => {
-
             if (drawnItems.getLayers().length === 0) {
-
                 alert('Brak rejonów do edycji!');
-
                 return;
-
             }
-
 
             isEditing = true;
-
             toggleEditBtn.style.display = 'none';
-
             saveEditBtn.style.display = 'block';
 
-
             if (selectedLayer) {
-
-                enableSnappingForLayer(selectedLayer);
-
-                selectedLayer.editing.enable();
-
-            } else {
-
+                const targetName = selectedLayer.regionName;
                 drawnItems.eachLayer(layer => {
-
-                    enableSnappingForLayer(layer);
-
-                    if (layer.editing) layer.editing.enable();
-
+                    if (layer.regionName === targetName) {
+                        enableSnappingForLayer(layer);
+                        if (layer.editing) layer.editing.enable();
+                    }
                 });
-
+            } else {
+                drawnItems.eachLayer(layer => {
+                    enableSnappingForLayer(layer);
+                    if (layer.editing) layer.editing.enable();
+                });
             }
-
         });
 
-
         function enableSnappingForLayer(layer) {
-
             if (layer.snapediting) return;
-
             layer.snapediting = new L.Handler.PolylineSnap(map, layer, {
-
                 snapDistance: 15
-
             });
-
             drawnItems.eachLayer(other => {
-
                 if (other !== layer) layer.snapediting.addGuideLayer(other);
-
             });
-
             layer.snapediting.enable();
-
         }
-
 
         saveEditBtn.addEventListener('click', saveCurrentEdits);
 
-
         function saveCurrentEdits() {
-
             if (!isEditing) return;
 
-
             drawnItems.eachLayer(layer => {
-
                 if (layer.snapediting) layer.snapediting.disable();
-
                 if (layer.editing) layer.editing.disable();
-
             });
 
-
             isEditing = false;
-
             saveEditBtn.style.display = 'none';
-
             toggleEditBtn.style.display = 'block';
 
-
             recalculateAllStats();
-
             saveToLocalStorage();
-
         }
-
 
         let searchMarker = null;
 
-
         function clearSearchMarker() {
-
             if (searchMarker) {
-
                 map.removeLayer(searchMarker);
-
                 searchMarker = null;
-
             }
-
         }
 
-
         L.Control.geocoder({
-
             defaultMarkGeocode: false,
-
             placeholder: "Szukaj adresu...",
-
             errorMessage: "Nie znaleziono adresu."
-
         })
-
         .on('markgeocode', function(e) {
-
             clearSearchMarker();
-
 
             const bbox = e.geocode.bbox;
-
             const poly = L.polygon([
-
                 bbox.getSouthEast(), bbox.getNorthEast(),
-
                 bbox.getNorthWest(), bbox.getSouthWest()
-
             ]);
-
             map.fitBounds(poly.getBounds());
 
-
             searchMarker = L.marker(e.geocode.center)
-
                 .bindPopup(`<b>${escapeXml(e.geocode.name)}</b>`)
-
                 .addTo(map)
-
                 .openPopup();
 
-
             searchMarker.on('popupclose', function() {
-
                 clearSearchMarker();
-
             });
-
         })
-
         .addTo(map);
 
-
         map.on('click', function(e) {
-
             clearSearchMarker();
-
             if (e.originalEvent.target.classList.contains('leaflet-container')) {
-
                 selectRegion(null);
-
             }
-
         });
 
-
         const markersClusterGroup = L.markerClusterGroup({ chunkedLoading: true });
-
         map.addLayer(markersClusterGroup);
-
 
         let regionCounter = 1;
 
-
         map.on(L.Draw.Event.CREATED, function (e) {
-
             const layer = e.layer;
-
             drawnItems.addLayer(layer);
 
-
             if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
-
                 const defaultColor = "#3388ff";
-
                 layer.setStyle({ color: defaultColor, fillColor: defaultColor, fillOpacity: 0.35, weight: 3 });
 
-
-                const regionId = 'region-' + Date.now();
-
                 const regionName = `Rejon ${regionCounter++}`;
-
                 layer.regionColor = defaultColor;
-
+                layer.regionName = regionName;
                 
-
                 attachLayerEvents(layer);
-
-                createRegionCard(regionId, regionName, 0, layer, defaultColor);
-
+                rebuildRegionsListUI();
                 selectRegion(layer);
-
 
                 recalculateAllStats();
-
                 saveToLocalStorage();
-
             }
-
         });
-
 
         function attachLayerEvents(layer) {
-
             layer.on('click', function (e) {
-
                 L.DomEvent.stopPropagation(e);
-
                 selectRegion(layer);
-
             });
-
         }
 
-
         const fileInput = document.getElementById('fileInput');
-
         const processFilesBtn = document.getElementById('processFilesBtn');
-
         const fileQueueBox = document.getElementById('fileQueueBox');
-
         const queueToggleHeader = document.getElementById('queueToggleHeader');
-
         const toggleIcon = document.getElementById('toggleIcon');
 
-
         queueToggleHeader.addEventListener('click', () => {
-
             if (fileQueueBox.style.display === 'none') {
-
                 fileQueueBox.style.display = 'block';
-
                 toggleIcon.innerText = '▼';
-
             } else {
-
                 fileQueueBox.style.display = 'none';
-
                 toggleIcon.innerText = '►';
-
             }
-
         });
-
 
         fileInput.addEventListener('click', function() { this.value = null; });
 
-
         fileInput.addEventListener('change', function() {
-
             const files = fileInput.files;
-
             if (!files || files.length === 0) {
-
                 queueToggleHeader.style.display = 'none';
-
                 fileQueueBox.style.display = 'none';
-
                 return;
-
             }
-
 
             fileQueueBox.innerHTML = '';
-
             queueToggleHeader.style.display = 'flex';
-
             fileQueueBox.style.display = 'block';
-
             toggleIcon.innerText = '▼';
 
-
             Array.from(files).forEach((file, index) => {
-
                 const sizeKb = (file.size / 1024).toFixed(1);
-
                 const itemDiv = document.createElement('div');
-
                 itemDiv.className = 'file-queue-item';
-
                 itemDiv.innerHTML = `
-
                     <div class="file-header">
-
                         <span class="file-name" title="${file.name}">${file.name}</span>
-
                         <span class="file-status status-waiting" id="file-status-${index}">Oczekuje</span>
-
                     </div>
-
                     <div class="file-detail" id="file-detail-${index}">Rozmiar: ${sizeKb} KB</div>
-
                 `;
-
                 fileQueueBox.appendChild(itemDiv);
-
             });
 
-
             document.getElementById('status').innerText = `Wybrano ${files.length} plik(ów). Kliknij przycisk poniżej.`;
-
         });
 
-
         processFilesBtn.addEventListener('click', async function() {
-
             const files = fileInput.files;
-
             if (!files || files.length === 0) {
-
                 alert('Najpierw wybierz pliki z dysku!');
-
                 return;
-
             }
 
-
             processFilesBtn.disabled = true;
-
             let totalPolygons = 0;
-
             let totalMarkers = 0;
 
-
             for (let i = 0; i < files.length; i++) {
-
                 const file = files[i];
-
                 const statusBadge = document.getElementById(`file-status-${i}`);
-
                 const detailDiv = document.getElementById(`file-detail-${i}`);
-
 
                 const fileKey = `${file.name}_${file.size}_${file.lastModified}`;
 
-
                 if (processedFilesSet.has(fileKey)) {
-
                     if (statusBadge) {
-
                         statusBadge.className = 'file-status status-skipped';
-
                         statusBadge.innerText = 'Pominięto';
-
                         detailDiv.innerText = 'Plik został już wcześniej wczytany';
-
                     }
-
                     continue;
-
                 }
-
 
                 if (statusBadge) {
-
                     statusBadge.className = 'file-status status-processing';
-
                     statusBadge.innerText = 'Przetwarzanie';
-
                 }
 
-
                 try {
-
                     const result = await processSingleFile(file);
-
                     totalPolygons += result.polygons;
-
                     totalMarkers += result.markers;
-
 
                     processedFilesSet.add(fileKey);
 
-
                     if (statusBadge) {
-
                         if (result.polygons > 0 || result.markers > 0) {
-
                             statusBadge.className = 'file-status status-done';
-
                             statusBadge.innerText = 'Wgrano';
-
                             detailDiv.innerText = `Obszary: ${result.polygons}, Punkty: ${result.markers}`;
-
                         } else {
-
                             statusBadge.className = 'file-status status-empty';
-
                             statusBadge.innerText = 'Brak danych';
-
                             detailDiv.innerText = 'Nie znaleziono obiektów';
-
                         }
-
                     }
-
                 } catch (err) {
-
                     console.error('Błąd pliku:', file.name, err);
-
                     if (statusBadge) {
-
                         statusBadge.className = 'file-status status-error';
-
                         statusBadge.innerText = 'Błąd';
-
                         detailDiv.innerText = err.message || 'Błąd odczytu';
-
                     }
-
                 }
-
             }
 
-
+            rebuildRegionsListUI();
             recalculateAllStats();
-
             saveToLocalStorage();
 
-
             if (drawnItems.getLayers().length > 0) {
-
                 map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
-
             } else if (markersClusterGroup.getLayers().length > 0) {
-
                 map.fitBounds(markersClusterGroup.getBounds(), { padding: [30, 30] });
-
             }
-
 
             document.getElementById('status').innerText = `Koniec! Wgrano ${totalPolygons} obszarów i ${totalMarkers} punktów.`;
-
             processFilesBtn.disabled = false;
-
         });
 
-
         function processSingleFile(file) {
-
             return new Promise((resolve, reject) => {
-
                 const name = file.name.toLowerCase();
 
-
                 if (name.endsWith('.kml')) {
-
                     const reader = new FileReader();
-
                     reader.onload = e => {
-
                         try { resolve(parseAndRenderKmlString(e.target.result)); } 
-
                         catch (err) { reject(err); }
-
                     };
-
                     reader.onerror = () => reject(new Error('Błąd odczytu pliku KML'));
-
                     reader.readAsText(file);
-
                 } 
-
                 else if (name.endsWith('.kmz')) {
-
                     const reader = new FileReader();
-
                     reader.onload = e => {
-
                         JSZip.loadAsync(e.target.result)
-
                             .then(zip => {
-
                                 const kmlFile = Object.keys(zip.files).find(f => f.toLowerCase().endsWith('.kml'));
-
                                 if (!kmlFile) throw new Error('Brak pliku KML w archiwum KMZ');
-
                                 return zip.files[kmlFile].async('string');
-
                             })
-
                             .then(xmlStr => resolve(parseAndRenderKmlString(xmlStr)))
-
                             .catch(reject);
-
                     };
-
                     reader.onerror = () => reject(new Error('Błąd odczytu pliku KMZ'));
-
                     reader.readAsArrayBuffer(file);
-
                 } 
-
                 else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-
                     const reader = new FileReader();
-
                     reader.onload = e => {
-
                         try {
-
                             const data = new Uint8Array(e.target.result);
-
                             const workbook = XLSX.read(data, { type: 'array' });
-
                             const sheet = workbook.Sheets[workbook.SheetNames[0]];
-
                             const json = XLSX.utils.sheet_to_json(sheet);
-
                             const count = renderTableData(json);
-
                             resolve({ polygons: 0, markers: count });
-
                         } catch (err) { reject(err); }
-
                     };
-
                     reader.onerror = () => reject(new Error('Błąd odczytu pliku Excel'));
-
                     reader.readAsArrayBuffer(file);
-
                 } 
-
                 else if (name.endsWith('.csv')) {
-
                     Papa.parse(file, {
-
                         header: true,
-
                         skipEmptyLines: true,
-
                         complete: res => resolve({ polygons: 0, markers: renderTableData(res.data) }),
-
                         error: err => reject(err)
-
                     });
-
                 } 
-
                 else {
-
                     reject(new Error('Nieobsługiwany format pliku'));
-
                 }
-
             });
-
         }
-
 
         function parseAndRenderKmlString(xmlString) {
-
             const parser = new DOMParser();
-
             const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
 
-
             if (xmlDoc.querySelector('parsererror')) {
-
                 throw new Error('Błąd składni XML/KML');
-
             }
-
 
             const placemarks = xmlDoc.querySelectorAll('Placemark');
-
             let importedPolygons = 0;
-
             const newMarkers = [];
 
-
             placemarks.forEach(placemark => {
-
                 const nameEl = placemark.querySelector('name');
-
                 const regionName = nameEl ? nameEl.textContent.trim() : `Rejon ${regionCounter++}`;
 
-
                 let polyColor = '#3388ff';
-
                 const styleUrlEl = placemark.querySelector('styleUrl');
-
                 if (styleUrlEl) {
-
                     const styleId = styleUrlEl.textContent.replace('#', '');
-
                     let targetStyleId = styleId;
-
                     
-
                     const styleMapEl = xmlDoc.querySelector(`StyleMap[id="${styleId}"]`);
-
                     if (styleMapEl) {
-
                         const normalPair = Array.from(styleMapEl.querySelectorAll('Pair')).find(p => {
-
                             const key = p.querySelector('key');
-
                             return key && key.textContent.trim() === 'normal';
-
                         });
-
                         if (normalPair) {
-
                             const pairUrl = normalPair.querySelector('styleUrl');
-
                             if (pairUrl) targetStyleId = pairUrl.textContent.replace('#', '');
-
                         }
-
                     }
-
 
                     const styleEl = xmlDoc.querySelector(`Style[id="${targetStyleId}"]`);
-
                     if (styleEl) {
-
                         const colorEl = styleEl.querySelector('PolyStyle > color, LineStyle > color');
-
                         if (colorEl) polyColor = kmlColorToHex(colorEl.textContent);
-
                     }
-
                 }
-
 
                 const polygons = placemark.querySelectorAll('Polygon');
-
                 polygons.forEach(polygon => {
-
                     const coordsEl = polygon.querySelector('outerBoundaryIs LinearRing coordinates, coordinates');
-
                     if (!coordsEl) return;
 
-
                     const rawText = coordsEl.textContent.trim();
-
                     const coordTokens = rawText.split(/\s+/);
-
                     const latLngs = [];
 
-
                     coordTokens.forEach(token => {
-
                         const parts = token.split(',');
-
                         if (parts.length >= 2) {
-
                             const lng = parseFloat(parts[0]);
-
                             const lat = parseFloat(parts[1]);
-
                             if (!isNaN(lat) && !isNaN(lng)) {
-
                                 latLngs.push([lat, lng]);
-
                             }
-
                         }
-
                     });
 
-
                     if (latLngs.length >= 3) {
-
                         const polygonLayer = L.polygon(latLngs, {
-
                             color: polyColor,
-
                             fillColor: polyColor,
-
                             fillOpacity: 0.4,
-
                             weight: 3
-
                         });
 
-
                         drawnItems.addLayer(polygonLayer);
-
                         polygonLayer.regionColor = polyColor;
-
+                        polygonLayer.regionName = regionName;
 
                         attachLayerEvents(polygonLayer);
-
-
-                        const regionId = 'region-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
-
-                        createRegionCard(regionId, regionName, 0, polygonLayer, polyColor);
-
                         importedPolygons++;
-
                     }
-
                 });
 
-
                 const pointCoordsEl = placemark.querySelector('Point coordinates');
-
                 if (pointCoordsEl) {
-
                     const parts = pointCoordsEl.textContent.trim().split(',');
-
                     if (parts.length >= 2) {
-
                         const lng = parseFloat(parts[0]);
-
                         const lat = parseFloat(parts[1]);
-
                         if (!isNaN(lat) && !isNaN(lng)) {
-
                             const m = createInteractiveMarker(lat, lng, regionName);
-
                             newMarkers.push(m);
-
                             allMarkers.push(m);
-
                         }
-
                     }
-
                 }
-
             });
 
-
             if (newMarkers.length > 0) {
-
                 markersClusterGroup.addLayers(newMarkers);
-
             }
-
 
             return { polygons: importedPolygons, markers: newMarkers.length };
-
         }
-
 
         function kmlColorToHex(kmlColor) {
-
             if (!kmlColor || kmlColor.length < 6) return '#3388ff';
-
             const clean = kmlColor.trim();
-
             let b, g, r;
-
             if (clean.length === 8) {
-
                 b = clean.substring(2, 4);
-
                 g = clean.substring(4, 6);
-
                 r = clean.substring(6, 8);
-
             } else {
-
                 b = clean.substring(0, 2);
-
                 g = clean.substring(2, 4);
-
                 r = clean.substring(4, 6);
-
             }
-
             return `#${r}${g}${b}`;
-
         }
 
-
         function hexToKmlColor(hex) {
-
             let cleanHex = hex.replace('#', '');
-
             if (cleanHex.length === 3) {
-
                 cleanHex = cleanHex.split('').map(c => c + c).join('');
-
             }
-
             const r = cleanHex.substring(0, 2);
-
             const g = cleanHex.substring(2, 4);
-
             const b = cleanHex.substring(4, 6);
-
             return `ff${b}${g}${r}`;
-
         } 
 
-        function escapeXml(unsafe) {
-            if (!unsafe) return '';
-            return unsafe.replace(/[<>&'"]/g, c => {
-                switch (c) {
-                    case '<': return '&lt;';
-                    case '>': return '&gt;';
-                    case '&': return '&amp;';
-                    case '\'': return '&apos;';
-                    case '"': return '&quot;';
-                }
-            });
-        }
+        function escapeXml(unsafe) {
+            if (!unsafe) return '';
+            return unsafe.replace(/[<>&'"]/g, c => {
+                switch (c) {
+                    case '<': return '&lt;';
+                    case '>': return '&gt;';
+                    case '&': return '&amp;';
+                    case '\'': return '&apos;';
+                    case '"': return '&quot;';
+                }
+            });
+        }
 
-        function renderTableData(rows) {
-            const newMarkers = [];
-            rows.forEach(row => {
-                const latKey = Object.keys(row).find(k => ['lat', 'latitude', 'szerokosc', 'szerokość'].includes(k.trim().toLowerCase()));
-                const lonKey = Object.keys(row).find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość'].includes(k.trim().toLowerCase()));
-                const labelKey = Object.keys(row).find(k => ['adres', 'address', 'nazwa', 'name'].includes(k.trim().toLowerCase()));
+        function renderTableData(rows) {
+            const newMarkers = [];
+            rows.forEach(row => {
+                const latKey = Object.keys(row).find(k => ['lat', 'latitude', 'szerokosc', 'szerokość'].includes(k.trim().toLowerCase()));
+                const lonKey = Object.keys(row).find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość'].includes(k.trim().toLowerCase()));
+                const labelKey = Object.keys(row).find(k => ['adres', 'address', 'nazwa', 'name'].includes(k.trim().toLowerCase()));
 
-                if (latKey && lonKey) {
-                    const lat = parseFloat(row[latKey]);
-                    const lon = parseFloat(row[lonKey]);
-                    const label = labelKey ? row[labelKey] : 'Punkt';
+                if (latKey && lonKey) {
+                    const lat = parseFloat(row[latKey]);
+                    const lon = parseFloat(row[lonKey]);
+                    const label = labelKey ? row[labelKey] : 'Punkt';
 
-                    if (!isNaN(lat) && !isNaN(lon)) {
-                        const m = createInteractiveMarker(lat, lon, label);
-                        newMarkers.push(m);
-                        allMarkers.push(m);
-                    }
-                }
-            });
+                    if (!isNaN(lat) && !isNaN(lon)) {
+                        const m = createInteractiveMarker(lat, lon, label);
+                        newMarkers.push(m);
+                        allMarkers.push(m);
+                    }
+                }
+            });
 
-            markersClusterGroup.addLayers(newMarkers);
-            return newMarkers.length;
-        }
+            markersClusterGroup.addLayers(newMarkers);
+            return newMarkers.length;
+        }
 
-        function recalculateAllStats() {
-            const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
-            const regionGeoJSONs = regionLayers.map(layer => ({
-                layer: layer,
-                geoJSON: layer.toGeoJSON(),
-                count: 0
-            }));
+        function recalculateAllStats() {
+            const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            
+            // Przygotowanie struktur Turf dla poszczególnych warstw
+            const preparedLayers = regionLayers.map(layer => ({
+                layer: layer,
+                geoJSON: layer.toGeoJSON(),
+                name: layer.regionName || 'Bez nazwy'
+            }));
 
-            let unassignedCount = 0;
+            let unassignedCount = 0;
 
-            allMarkers.forEach(marker => {
-                const latLng = marker.getLatLng();
-                const turfPoint = turf.point([latLng.lng, latLng.lat]);
-                let isInsideAny = false;
+            // Zliczanie punktów per grupa rejonowa (po nazwie)
+            const countsByName = {};
+            preparedLayers.forEach(pl => {
+                if (!countsByName[pl.name]) countsByName[pl.name] = 0;
+            });
 
-                regionGeoJSONs.forEach(r => {
-                    if (turf.booleanPointInPolygon(turfPoint, r.geoJSON)) {
-                        r.count++;
-                        isInsideAny = true;
-                    }
-                });
+            allMarkers.forEach(marker => {
+                const latLng = marker.getLatLng();
+                const turfPoint = turf.point([latLng.lng, latLng.lat]);
+                let isInsideAny = false;
 
-                marker.isAssigned = isInsideAny;
-                if (!isInsideAny) unassignedCount++;
-            });
+                const matchedNames = new Set();
+                preparedLayers.forEach(pl => {
+                    if (turf.booleanPointInPolygon(turfPoint, pl.geoJSON)) {
+                        matchedNames.add(pl.name);
+                        isInsideAny = true;
+                    }
+                });
 
-            regionGeoJSONs.forEach(r => {
-                if (r.layer.regionId) {
-                    const card = document.getElementById(r.layer.regionId);
-                    if (card) {
-                        card.querySelector('.point-count').innerText = r.count;
-                    }
-                }
-            });
+                matchedNames.forEach(name => {
+                    countsByName[name]++;
+                });
 
-            document.getElementById('unassignedCount').innerText = unassignedCount;
+                marker.isAssigned = isInsideAny;
+                if (!isInsideAny) unassignedCount++;
+            });
 
-            regionGeoJSONs.forEach(r => {
-                const card = document.getElementById(r.layer.regionId);
-                if (!card) return;
+            // Aktualizacja wyników w UI na kartach rejonów
+            const cards = document.querySelectorAll('.region-card');
+            cards.forEach(card => {
+                const name = card.getAttribute('data-region-name');
+                const pointCountEl = card.querySelector('.point-count');
+                if (pointCountEl) {
+                    pointCountEl.innerText = countsByName[name] || 0;
+                }
 
-                let hasOverlap = false;
-                regionGeoJSONs.forEach(other => {
-                    if (r.layer !== other.layer) {
-                        const intersection = turf.intersect(r.geoJSON, other.geoJSON);
-                        if (intersection) hasOverlap = true;
-                    }
-                });
+                // Weryfikacja nakładania się (overlap) dla dowolnych warstw
+                let hasOverlap = false;
+                const thisNameLayers = preparedLayers.filter(pl => pl.name === name);
+                const otherNameLayers = preparedLayers.filter(pl => pl.name !== name);
 
-                const badge = card.querySelector('.overlap-badge');
-                if (hasOverlap) {
-                    card.classList.add('overlap-warning');
-                    if (badge) badge.style.display = 'block';
-                } else {
-                    card.classList.remove('overlap-warning');
-                    if (badge) badge.style.display = 'none';
-                }
-            });
+                for (let tLayer of thisNameLayers) {
+                    for (let oLayer of otherNameLayers) {
+                        const intersection = turf.intersect(tLayer.geoJSON, oLayer.geoJSON);
+                        if (intersection) {
+                            hasOverlap = true;
+                            break;
+                        }
+                    }
+                    if (hasOverlap) break;
+                }
 
-            if (showOnlyUnassigned) filterUnassignedMarkers();
-        }
+                const badge = card.querySelector('.overlap-badge');
+                if (hasOverlap) {
+                    card.classList.add('overlap-warning');
+                    if (badge) badge.style.display = 'block';
+                } else {
+                    card.classList.remove('overlap-warning');
+                    if (badge) badge.style.display = 'none';
+                }
+            });
 
-        const toggleUnassignedBtn = document.getElementById('toggleUnassignedBtn');
-        toggleUnassignedBtn.addEventListener('click', () => {
-            showOnlyUnassigned = !showOnlyUnassigned;
-            if (showOnlyUnassigned) {
-                toggleUnassignedBtn.innerText = 'Pokaż wszystkie punkty';
-                filterUnassignedMarkers();
-            } else {
-                toggleUnassignedBtn.innerText = 'Pokaż tylko nieprzypisane';
-                markersClusterGroup.clearLayers();
-                markersClusterGroup.addLayers(allMarkers);
-            }
-        });
+            document.getElementById('unassignedCount').innerText = unassignedCount;
 
-        function filterUnassignedMarkers() {
-            const unassigned = allMarkers.filter(m => !m.isAssigned);
-            markersClusterGroup.clearLayers();
-            markersClusterGroup.addLayers(unassigned);
-        }
+            if (showOnlyUnassigned) filterUnassignedMarkers();
+        }
 
-        function createRegionCard(id, defaultName, count, layer, color) {
-            const emptyInfo = document.getElementById('emptyInfo');
-            if (emptyInfo) emptyInfo.style.display = 'none';
+        const toggleUnassignedBtn = document.getElementById('toggleUnassignedBtn');
+        toggleUnassignedBtn.addEventListener('click', () => {
+            showOnlyUnassigned = !showOnlyUnassigned;
+            if (showOnlyUnassigned) {
+                toggleUnassignedBtn.innerText = 'Pokaż wszystkie punkty';
+                filterUnassignedMarkers();
+            } else {
+                toggleUnassignedBtn.innerText = 'Pokaż tylko nieprzypisane';
+                markersClusterGroup.clearLayers();
+                markersClusterGroup.addLayers(allMarkers);
+            }
+        });
 
-            layer.regionId = id;
+        function filterUnassignedMarkers() {
+            const unassigned = allMarkers.filter(m => !m.isAssigned);
+            markersClusterGroup.clearLayers();
+            markersClusterGroup.addLayers(unassigned);
+        }
 
-            const card = document.createElement('div');
-            card.className = 'region-card';
-            card.id = id;
-            card.style.borderLeftColor = color;
+        // Grupowanie rejonów o tej samej nazwie na liście bocznej
+        function rebuildRegionsListUI() {
+            const regionsList = document.getElementById('regionsList');
+            regionsList.innerHTML = '';
 
-            card.innerHTML = `
-                <div class="region-card-header">
-                    <input type="text" class="region-title-input" value="${escapeXml(defaultName)}">
-                </div>
-                <div class="region-stats">
-                    📍 Liczba punktów: <b class="point-count">${count}</b>
-                </div>
-                <div class="overlap-badge">⚠️ Rejon nachodzi na inny!</div>
-                <div class="region-controls">
-                    <div class="color-picker-wrapper">
-                        <input type="color" class="color-picker" value="${color}">
-                        <span>Kolor</span>
-                    </div>
-                    <button class="btn btn-zoom">🔍 Wyśrodkuj</button>
-                    <button class="btn btn-delete">🗑️</button>
-                </div>
-            `;
+            const layers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
 
-            card.addEventListener('click', (evt) => {
-                if (!evt.target.classList.contains('region-title-input') && 
-                    !evt.target.classList.contains('color-picker') && 
-                    !evt.target.classList.contains('btn-delete')) {
-                    selectRegion(layer);
-                }
-            });
+            if (layers.length === 0) {
+                regionsList.innerHTML = `
+                    <div id="emptyInfo" style="text-align: center; color: #adb5bd; margin-top: 20px; font-size: 12px;">
+                        Brak narysowanych rejonów. Wczytaj pliki lub narysuj obszar ręcznie.
+                    </div>
+                `;
+                return;
+            }
 
-            const titleInput = card.querySelector('.region-title-input');
-            titleInput.addEventListener('change', () => {
-                saveToLocalStorage();
-            });
+            // Grupowanie warstw według nazwy rejonu
+            const groups = {};
+            layers.forEach(layer => {
+                const name = layer.regionName || 'Bez nazwy';
+                if (!groups[name]) {
+                    groups[name] = [];
+                }
+                groups[name].push(layer);
+            });
 
-            const colorPicker = card.querySelector('.color-picker');
-            colorPicker.addEventListener('input', (evt) => {
-                const newColor = evt.target.value;
-                layer.regionColor = newColor;
-                layer.setStyle({ color: newColor, fillColor: newColor });
-                card.style.borderLeftColor = newColor;
-                saveToLocalStorage();
-            });
+            Object.keys(groups).forEach(name => {
+                const groupLayers = groups[name];
+                const mainColor = groupLayers[0].regionColor || '#3388ff';
+                const card = createRegionCardGroup(name, groupLayers, mainColor);
+                regionsList.appendChild(card);
+            });
+        }
 
-            card.querySelector('.btn-zoom').addEventListener('click', (e) => {
-                e.stopPropagation();
-                map.fitBounds(layer.getBounds(), { padding: [30, 30] });
-                selectRegion(layer);
-            });
+        function createRegionCardGroup(name, groupLayers, color) {
+            const card = document.createElement('div');
+            card.className = 'region-card';
+            card.setAttribute('data-region-name', name);
+            card.style.borderLeftColor = color;
 
-            card.querySelector('.btn-delete').addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (selectedLayer === layer) selectRegion(null);
-                drawnItems.removeLayer(layer);
-                card.remove();
-                recalculateAllStats();
-                saveToLocalStorage();
-            });
+            if (selectedLayer && selectedLayer.regionName === name) {
+                card.classList.add('selected');
+            }
 
-            document.getElementById('regionsList').appendChild(card);
-        }
+            card.innerHTML = `
+                <div class="region-card-header">
+                    <input type="text" class="region-title-input" value="${escapeXml(name)}">
+                </div>
+                <div class="region-stats">
+                    <span>📍 Punktów: <b class="point-count">0</b></span>
+                    <span style="font-size: 9px; color: #888;">Obszarów: ${groupLayers.length}</span>
+                </div>
+                <div class="overlap-badge">⚠️ Rejon nachodzi na inny!</div>
+                <div class="region-controls">
+                    <div class="color-picker-wrapper">
+                        <input type="color" class="color-picker" value="${color}">
+                        <span>Kolor</span>
+                    </div>
+                    <button class="btn btn-zoom">🔍 Wyśrodkuj</button>
+                    <button class="btn btn-delete">🗑️</button>
+                </div>
+            `;
 
-        function saveToLocalStorage() {
-            const dataToSave = [];
-            drawnItems.eachLayer(layer => {
-                if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
-                    const card = layer.regionId ? document.getElementById(layer.regionId) : null;
-                    const name = card ? card.querySelector('.region-title-input').value : 'Rejon';
-                    dataToSave.push({
-                        id: layer.regionId,
-                        name: name,
-                        color: layer.regionColor || '#3388ff',
-                        latLngs: layer.getLatLngs()
-                    });
-                }
-            });
-            localStorage.setItem('saved_map_regions', JSON.stringify(dataToSave));
-        }
+            card.addEventListener('click', (evt) => {
+                if (!evt.target.classList.contains('region-title-input') && 
+                    !evt.target.classList.contains('color-picker') && 
+                    !evt.target.classList.contains('btn-delete')) {
+                    selectRegion(groupLayers[0]);
+                }
+            });
 
-        function loadFromLocalStorage() {
-            const raw = localStorage.getItem('saved_map_regions');
-            if (!raw) return;
+            const titleInput = card.querySelector('.region-title-input');
+            titleInput.addEventListener('change', () => {
+                const newName = titleInput.value.trim() || 'Bez nazwy';
+                groupLayers.forEach(l => {
+                    l.regionName = newName;
+                });
+                rebuildRegionsListUI();
+                recalculateAllStats();
+                saveToLocalStorage();
+            });
 
-            try {
-                const regions = JSON.parse(raw);
-                regions.forEach(r => {
-                    const polygonLayer = L.polygon(r.latLngs, {
-                        color: r.color,
-                        fillColor: r.color,
-                        fillOpacity: 0.4,
-                        weight: 3
-                    });
+            const colorPicker = card.querySelector('.color-picker');
+            colorPicker.addEventListener('input', (evt) => {
+                const newColor = evt.target.value;
+                groupLayers.forEach(l => {
+                    l.regionColor = newColor;
+                    l.setStyle({ color: newColor, fillColor: newColor });
+                });
+                card.style.borderLeftColor = newColor;
+                saveToLocalStorage();
+            });
 
-                    drawnItems.addLayer(polygonLayer);
-                    polygonLayer.regionColor = r.color;
-                    attachLayerEvents(polygonLayer);
+            card.querySelector('.btn-zoom').addEventListener('click', (e) => {
+                e.stopPropagation();
+                const groupFeature = L.featureGroup(groupLayers);
+                map.fitBounds(groupFeature.getBounds(), { padding: [30, 30] });
+                selectRegion(groupLayers[0]);
+            });
 
-                    createRegionCard(r.id, r.name, 0, polygonLayer, r.color);
-                });
+            card.querySelector('.btn-delete').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (selectedLayer && selectedLayer.regionName === name) selectRegion(null);
+                groupLayers.forEach(l => drawnItems.removeLayer(l));
+                card.remove();
+                rebuildRegionsListUI();
+                recalculateAllStats();
+                saveToLocalStorage();
+            });
 
-                if (regions.length > 0) {
-                    recalculateAllStats();
-                    map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
-                }
-            } catch (err) {
-                console.error("Błąd wczytywania z localStorage:", err);
-            }
-        }
+            return card;
+        }
 
-        document.getElementById('resetStorageBtn').addEventListener('click', () => {
-            if (confirm('Czy na pewno chcesz wyczyścić wszystkie zapamiętane rejony z pamięci przeglądarki?')) {
-                localStorage.removeItem('saved_map_regions');
-                drawnItems.clearLayers();
-                document.getElementById('regionsList').innerHTML = `
-                    <div id="emptyInfo" style="text-align: center; color: #adb5bd; margin-top: 20px; font-size: 12px;">
-                        Brak narysowanych rejonów. Wczytaj pliki lub narysuj obszar ręcznie.
-                    </div>
-                `;
-                recalculateAllStats();
-            }
-        });
+        function saveToLocalStorage() {
+            const dataToSave = [];
+            drawnItems.eachLayer(layer => {
+                if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+                    dataToSave.push({
+                        id: layer.regionId || ('region-' + Math.random()),
+                        name: layer.regionName || 'Rejon',
+                        color: layer.regionColor || '#3388ff',
+                        latLngs: layer.getLatLngs()
+                    });
+                }
+            });
+            localStorage.setItem('saved_map_regions', JSON.stringify(dataToSave));
+        }
 
-        document.getElementById('exportXlsxBtn').addEventListener('click', () => {
-            const layers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
-            if (layers.length === 0) {
-                alert('Brak rejonów do wyeksportowania!');
-                return;
-            }
+        function loadFromLocalStorage() {
+            const raw = localStorage.getItem('saved_map_regions');
+            if (!raw) return;
 
-            const exportData = layers.map((layer, index) => {
-                const card = layer.regionId ? document.getElementById(layer.regionId) : null;
-                const regionName = card ? card.querySelector('.region-title-input').value : `Rejon ${index + 1}`;
-                const pointCount = card ? parseInt(card.querySelector('.point-count').innerText) || 0 : 0;
+            try {
+                const regions = JSON.parse(raw);
+                regions.forEach(r => {
+                    const polygonLayer = L.polygon(r.latLngs, {
+                        color: r.color,
+                        fillColor: r.color,
+                        fillOpacity: 0.4,
+                        weight: 3
+                    });
 
-                return {
-                    "Nazwa rejonu": regionName,
-                    "Liczba punktów": pointCount
-                };
-            });
+                    drawnItems.addLayer(polygonLayer);
+                    polygonLayer.regionColor = r.color;
+                    polygonLayer.regionName = r.name;
+                    attachLayerEvents(polygonLayer);
+                });
 
-            const worksheet = XLSX.utils.json_to_sheet(exportData);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Podsumowanie");
+                if (regions.length > 0) {
+                    rebuildRegionsListUI();
+                    recalculateAllStats();
+                    map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
+                }
+            } catch (err) {
+                console.error("Błąd wczytywania z localStorage:", err);
+            }
+        }
 
-            XLSX.writeFile(workbook, `podsumowanie_rejonow_${new Date().toISOString().slice(0,10)}.xlsx`);
-        });
+        // PRZYCISK: Wyczyść wszystko
+        document.getElementById('resetStorageBtn').addEventListener('click', () => {
+            if (confirm('Czy na pewno chcesz wyczyścić wszystkie punkty na mapie oraz narysowane rejony? Ta operacja jest nieodwracalna.')) {
+                localStorage.removeItem('saved_map_regions');
+                drawnItems.clearLayers();
+                markersClusterGroup.clearLayers();
+                allMarkers = [];
+                processedFilesSet.clear();
 
-        document.getElementById('exportKmlBtn').addEventListener('click', () => {
-            const layers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
-            if (layers.length === 0) {
-                alert('Brak rejonów do wyeksportowania!');
-                return;
-            }
+                const fileQueueBox = document.getElementById('fileQueueBox');
+                fileQueueBox.innerHTML = '';
+                document.getElementById('queueToggleHeader').style.display = 'none';
+                fileQueueBox.style.display = 'none';
+                document.getElementById('fileInput').value = '';
+                document.getElementById('status').innerText = '';
 
-            let kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+                selectRegion(null);
+                rebuildRegionsListUI();
+                recalculateAllStats();
+            }
+        });
+
+        document.getElementById('exportXlsxBtn').addEventListener('click', () => {
+            const layers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            if (layers.length === 0) {
+                alert('Brak rejonów do wyeksportowania!');
+                return;
+            }
+
+            const groups = {};
+            layers.forEach(layer => {
+                const name = layer.regionName || 'Bez nazwy';
+                if (!groups[name]) groups[name] = 0;
+            });
+
+            const exportData = Object.keys(groups).map(name => {
+                const card = document.querySelector(`.region-card[data-region-name="${CSS.escape(name)}"]`);
+                const pointCount = card ? parseInt(card.querySelector('.point-count').innerText) || 0 : 0;
+
+                return {
+                    "Nazwa rejonu": name,
+                    "Liczba punktów": pointCount
+                };
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Podsumowanie");
+
+            XLSX.writeFile(workbook, `podsumowanie_rejonow_${new Date().toISOString().slice(0,10)}.xlsx`);
+        });
+
+        document.getElementById('exportKmlBtn').addEventListener('click', () => {
+            const layers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            if (layers.length === 0) {
+                alert('Brak rejonów do wyeksportowania!');
+                return;
+            }
+
+            let kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/22">
-  <Document>
-    <name>Wyeksportowane Rejony</name>\n`;
+  <Document>
+    <name>Wyeksportowane Rejony</name>\n`;
 
-            layers.forEach((layer, index) => {
-                const card = layer.regionId ? document.getElementById(layer.regionId) : null;
-                const inputName = card ? card.querySelector('.region-title-input').value : null;
-                const regionName = inputName || `Rejon ${index + 1}`;
+            layers.forEach((layer, index) => {
+                const regionName = layer.regionName || `Rejon ${index + 1}`;
+                const hexColor = layer.regionColor || "#3388ff";
+                const kmlColor = hexToKmlColor(hexColor);
 
-                const hexColor = layer.regionColor || "#3388ff";
-                const kmlColor = hexToKmlColor(hexColor);
+                const latLngs = layer.getLatLngs()[0];
+                let coordsString = "";
+                
+                latLngs.forEach(ll => {
+                    coordsString += `${ll.lng},${ll.lat},0 `;
+                });
+                if (latLngs.length > 0) {
+                    coordsString += `${latLngs[0].lng},${latLngs[0].lat},0`;
+                }
 
-                const latLngs = layer.getLatLngs()[0];
-                let coordsString = "";
-                
-                latLngs.forEach(ll => {
-                    coordsString += `${ll.lng},${ll.lat},0 `;
-                });
-                if (latLngs.length > 0) {
-                    coordsString += `${latLngs[0].lng},${latLngs[0].lat},0`;
-                }
+                const styleId = `style_${index}`;
 
-                const styleId = `style_${layer.regionId || index}`;
+                kmlContent += `    <Style id="${styleId}">
+      <LineStyle>
+        <color>${kmlColor}</color>
+        <width>3</width>
+      </LineStyle>
+      <PolyStyle>
+        <color>66${kmlColor.substring(2)}</color>
+      </PolyStyle>
+    </Style>
+    <Placemark>
+      <name>${escapeXml(regionName)}</name>
+      <styleUrl>#${styleId}</styleUrl>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>${coordsString.trim()}</coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>\n`;
+            });
 
-                kmlContent += `    <Style id="${styleId}">
-      <LineStyle>
-        <color>${kmlColor}</color>
-        <width>3</width>
-      </LineStyle>
-      <PolyStyle>
-        <color>66${kmlColor.substring(2)}</color>
-      </PolyStyle>
-    </Style>
-    <Placemark>
-      <name>${escapeXml(regionName)}</name>
-      <styleUrl>#${styleId}</styleUrl>
-      <Polygon>
-        <outerBoundaryIs>
-          <LinearRing>
-            <coordinates>${coordsString.trim()}</coordinates>
-          </LinearRing>
-        </outerBoundaryIs>
-      </Polygon>
-    </Placemark>\n`;
-            });
-
-            kmlContent += `  </Document>
+            kmlContent += `  </Document>
 </kml>`;
 
-            const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `rejony_${new Date().toISOString().slice(0,10)}.kml`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        });
+            const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rejony_${new Date().toISOString().slice(0,10)}.kml`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
 
-        loadFromLocalStorage();
-    </script>
+        loadFromLocalStorage();
+    </script>
 </body>
-</html> 
-        
+</html>
