@@ -43,31 +43,16 @@
         .btn-process:hover { background: #2980b9; }
         .btn-process:disabled { background: #7f8c8d; cursor: not-allowed; }
 
-        /* Nagłówek zwijanej listy plików */
         .queue-toggle-header {
-            margin-top: 6px;
-            background: #243342;
-            color: #ecf0f1;
-            padding: 4px 6px;
-            font-size: 10px;
-            font-weight: bold;
-            border-radius: 3px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            user-select: none;
+            margin-top: 6px; background: #243342; color: #ecf0f1; padding: 4px 6px;
+            font-size: 10px; font-weight: bold; border-radius: 3px; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center; user-select: none;
         }
         .queue-toggle-header:hover { background: #1a252f; }
 
         #fileQueueBox {
-            background: #1a252f;
-            border-bottom-left-radius: 4px;
-            border-bottom-right-radius: 4px;
-            padding: 6px;
-            max-height: 120px;
-            overflow-y: auto;
-            display: none;
+            background: #1a252f; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px;
+            padding: 6px; max-height: 120px; overflow-y: auto; display: none;
         }
 
         .file-queue-item { display: flex; flex-direction: column; font-size: 10px; color: #ecf0f1; padding: 4px 0; border-bottom: 1px solid #3e5871; }
@@ -84,6 +69,16 @@
 
         .file-detail { font-size: 9px; color: #bdc3c7; margin-top: 2px; word-break: break-all; }
 
+        .unassigned-bar {
+            background: #fff3cd; color: #856404; padding: 6px 10px; border-bottom: 1px solid #ffeeba;
+            font-size: 11px; font-weight: bold; display: flex; justify-content: space-between; align-items: center;
+        }
+        .btn-filter-unassigned {
+            background: #856404; color: white; border: none; border-radius: 3px;
+            padding: 2px 6px; font-size: 10px; cursor: pointer;
+        }
+        .btn-filter-unassigned:hover { background: #533f03; }
+
         .actions-bar {
             padding: 8px 12px; background: #e9ecef; border-bottom: 1px solid #dee2e6;
             display: flex; flex-direction: column; gap: 5px;
@@ -96,11 +91,17 @@
         .btn-export-kml { background: #27ae60; color: white; }
         .btn-export-kml:hover { background: #219653; }
 
+        .btn-export-xlsx { background: #1d6f42; color: white; }
+        .btn-export-xlsx:hover { background: #144d2e; }
+
         .btn-edit-toggle { background: #f39c12; color: white; }
         .btn-edit-toggle:hover { background: #d35400; }
 
         .btn-save-toggle { background: #2980b9; color: white; display: none; }
         .btn-save-toggle:hover { background: #1c5980; }
+
+        .btn-reset-storage { background: #e74c3c; color: white; font-size: 10px; padding: 3px 6px; border: none; border-radius: 3px; cursor: pointer; margin-left: auto; }
+        .btn-reset-storage:hover { background: #c0392b; }
 
         #regionsList { flex: 1; overflow-y: auto; padding: 8px 12px; }
 
@@ -111,6 +112,7 @@
         }
         .region-card:hover { border-color: #aaa; }
         .region-card.selected { box-shadow: 0 0 0 2px #e67e22; background: #fffdf9; }
+        .region-card.overlap-warning { border-color: #e74c3c !important; background: #fdf2f2; }
 
         .region-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
         .region-title-input { font-weight: bold; border: 1px solid transparent; padding: 2px 4px; border-radius: 3px; width: 100%; font-size: 12px; }
@@ -120,6 +122,8 @@
         .region-controls { display: flex; gap: 6px; align-items: center; }
         .color-picker-wrapper { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #666; }
         .color-picker { border: none; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; background: none; padding: 0; }
+
+        .overlap-badge { color: #d63031; font-size: 10px; font-weight: bold; display: none; margin-top: 4px; }
 
         .btn { padding: 3px 8px; font-size: 11px; border: none; border-radius: 3px; cursor: pointer; }
         .btn-zoom { background: #e9ecef; color: #495057; }
@@ -149,14 +153,21 @@
             </div>
         </div>
 
+        <div class="unassigned-bar">
+            <span>Punktów nieprzypisanych: <b id="unassignedCount">0</b></span>
+            <button id="toggleUnassignedBtn" class="btn-filter-unassigned">Pokaż tylko nieprzypisane</button>
+        </div>
+
         <div class="actions-bar">
             <button id="toggleEditBtn" class="btn-action btn-edit-toggle">✏️ Edytuj wszystkie rejony</button>
             <button id="saveEditBtn" class="btn-action btn-save-toggle">💾 Zapisz edycję</button>
+            <button id="exportXlsxBtn" class="btn-action btn-export-xlsx">📊 Eksportuj podsumowanie (XLSX)</button>
             <button id="exportKmlBtn" class="btn-action btn-export-kml">📥 Eksportuj rejony do KML</button>
         </div>
 
-        <div style="padding: 8px 12px 0 12px; font-size: 11px; font-weight: bold; color: #6c757d;">
-            WCZYTANE REJONY:
+        <div style="padding: 8px 12px 0 12px; font-size: 11px; font-weight: bold; color: #6c757d; display: flex; align-items: center;">
+            <span>WCZYTANE REJONY:</span>
+            <button id="resetStorageBtn" class="btn-reset-storage" title="Usuwa zapamiętane rejony z przeglądarki">🧹 Wyczyść zapamiętane</button>
         </div>
 
         <div id="regionsList">
@@ -177,6 +188,8 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-snap@0.2.0/leaflet.snap.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.js"></script>
 
     <script>
         const map = L.map('map').setView([52.237, 21.017], 6);
@@ -189,10 +202,11 @@
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
 
+        // Inicjalizacja Snappingu (Dociąganie krawędzi)
         const drawControl = new L.Control.Draw({
             edit: false,
             draw: {
-                polygon: { allowIntersection: false, showArea: true },
+                polygon: { allowIntersection: false, showArea: true, snapDistance: 15 },
                 rectangle: true,
                 polyline: false, circle: false, marker: false, circlemarker: false
             }
@@ -201,11 +215,11 @@
 
         let selectedLayer = null;
         let isEditing = false;
+        let showOnlyUnassigned = false;
         const toggleEditBtn = document.getElementById('toggleEditBtn');
         const saveEditBtn = document.getElementById('saveEditBtn');
-
-        // Zbiornik na klucze unikalne przetworzonych plików (przeciw dublowaniu)
         const processedFilesSet = new Set();
+        const allMarkers = []; // Tablica do łatwego filtrowania punktów nieprzypisanych
 
         function selectRegion(layer) {
             if (isEditing) saveCurrentEdits();
@@ -242,42 +256,43 @@
             saveEditBtn.style.display = 'block';
 
             if (selectedLayer) {
+                enableSnappingForLayer(selectedLayer);
                 selectedLayer.editing.enable();
             } else {
                 drawnItems.eachLayer(layer => {
+                    enableSnappingForLayer(layer);
                     if (layer.editing) layer.editing.enable();
                 });
             }
         });
+
+        function enableSnappingForLayer(layer) {
+            if (layer.snapediting) return;
+            layer.snapediting = new L.Handler.PolylineSnap(map, layer, {
+                snapDistance: 15
+            });
+            drawnItems.eachLayer(other => {
+                if (other !== layer) layer.snapediting.addGuideLayer(other);
+            });
+            layer.snapediting.enable();
+        }
 
         saveEditBtn.addEventListener('click', saveCurrentEdits);
 
         function saveCurrentEdits() {
             if (!isEditing) return;
 
-            if (selectedLayer) {
-                if (selectedLayer.editing) selectedLayer.editing.disable();
-                updateRegionPointCount(selectedLayer);
-            } else {
-                drawnItems.eachLayer(layer => {
-                    if (layer.editing) layer.editing.disable();
-                    updateRegionPointCount(layer);
-                });
-            }
+            drawnItems.eachLayer(layer => {
+                if (layer.snapediting) layer.snapediting.disable();
+                if (layer.editing) layer.editing.disable();
+            });
 
             isEditing = false;
             saveEditBtn.style.display = 'none';
             toggleEditBtn.style.display = 'block';
-        }
 
-        function updateRegionPointCount(layer) {
-            if (layer.regionId) {
-                const newCount = countPointsInLayer(layer);
-                const card = document.getElementById(layer.regionId);
-                if (card) {
-                    card.querySelector('.point-count').innerText = newCount;
-                }
-            }
+            recalculateAllStats();
+            saveToLocalStorage();
         }
 
         let searchMarker = null;
@@ -340,9 +355,11 @@
                 layer.regionColor = defaultColor;
                 
                 attachLayerEvents(layer);
-                const count = countPointsInLayer(layer);
-                createRegionCard(regionId, regionName, count, layer, defaultColor);
+                createRegionCard(regionId, regionName, 0, layer, defaultColor);
                 selectRegion(layer);
+
+                recalculateAllStats();
+                saveToLocalStorage();
             }
         });
 
@@ -359,7 +376,6 @@
         const queueToggleHeader = document.getElementById('queueToggleHeader');
         const toggleIcon = document.getElementById('toggleIcon');
 
-        // Zwijanie / rozwijanie listy plików
         queueToggleHeader.addEventListener('click', () => {
             if (fileQueueBox.style.display === 'none') {
                 fileQueueBox.style.display = 'block';
@@ -418,7 +434,6 @@
                 const statusBadge = document.getElementById(`file-status-${i}`);
                 const detailDiv = document.getElementById(`file-detail-${i}`);
 
-                // Generowanie unikalnego klucza pliku
                 const fileKey = `${file.name}_${file.size}_${file.lastModified}`;
 
                 if (processedFilesSet.has(fileKey)) {
@@ -440,7 +455,6 @@
                     totalPolygons += result.polygons;
                     totalMarkers += result.markers;
 
-                    // Oznaczenie pliku jako wczytany
                     processedFilesSet.add(fileKey);
 
                     if (statusBadge) {
@@ -463,6 +477,9 @@
                     }
                 }
             }
+
+            recalculateAllStats();
+            saveToLocalStorage();
 
             if (drawnItems.getLayers().length > 0) {
                 map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
@@ -606,9 +623,7 @@
                         attachLayerEvents(polygonLayer);
 
                         const regionId = 'region-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
-                        const count = countPointsInLayer(polygonLayer);
-
-                        createRegionCard(regionId, regionName, count, polygonLayer, polyColor);
+                        createRegionCard(regionId, regionName, 0, polygonLayer, polyColor);
                         importedPolygons++;
                     }
                 });
@@ -620,7 +635,9 @@
                         const lng = parseFloat(parts[0]);
                         const lat = parseFloat(parts[1]);
                         if (!isNaN(lat) && !isNaN(lng)) {
-                            newMarkers.push(L.marker([lat, lng]).bindPopup(`<b>${escapeXml(regionName)}</b>`));
+                            const m = L.marker([lat, lng]).bindPopup(`<b>${escapeXml(regionName)}</b>`);
+                            newMarkers.push(m);
+                            allMarkers.push(m);
                         }
                     }
                 }
@@ -685,7 +702,9 @@
                     const label = labelKey ? row[labelKey] : 'Punkt';
 
                     if (!isNaN(lat) && !isNaN(lon)) {
-                        newMarkers.push(L.marker([lat, lon]).bindPopup(`<b>${escapeXml(label)}</b>`));
+                        const m = L.marker([lat, lon]).bindPopup(`<b>${escapeXml(label)}</b>`);
+                        newMarkers.push(m);
+                        allMarkers.push(m);
                     }
                 }
             });
@@ -694,18 +713,90 @@
             return newMarkers.length;
         }
 
-        function countPointsInLayer(layer) {
-            const drawnGeoJSON = layer.toGeoJSON();
-            let count = 0;
+        // Przeliczenie przypisania punktów i nakładania rejonów
+        function recalculateAllStats() {
+            const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            const regionGeoJSONs = regionLayers.map(layer => ({
+                layer: layer,
+                geoJSON: layer.toGeoJSON(),
+                count: 0
+            }));
 
-            markersClusterGroup.eachLayer(function(marker) {
+            let unassignedCount = 0;
+
+            allMarkers.forEach(marker => {
                 const latLng = marker.getLatLng();
                 const turfPoint = turf.point([latLng.lng, latLng.lat]);
-                if (turf.booleanPointInPolygon(turfPoint, drawnGeoJSON)) {
-                    count++;
+                let isInsideAny = false;
+
+                regionGeoJSONs.forEach(r => {
+                    if (turf.booleanPointInPolygon(turfPoint, r.geoJSON)) {
+                        r.count++;
+                        isInsideAny = true;
+                    }
+                });
+
+                marker.isAssigned = isInsideAny;
+                if (!isInsideAny) unassignedCount++;
+            });
+
+            // Aktualizacja punktów w kartach rejonów
+            regionGeoJSONs.forEach(r => {
+                if (r.layer.regionId) {
+                    const card = document.getElementById(r.layer.regionId);
+                    if (card) {
+                        card.querySelector('.point-count').innerText = r.count;
+                    }
                 }
             });
-            return count;
+
+            // Aktualizacja licznika nieprzypisanych
+            document.getElementById('unassignedCount').innerText = unassignedCount;
+
+            // Weryfikacja nachodzenia rejonów (Overlaps)
+            regionGeoJSONs.forEach(r => {
+                const card = document.getElementById(r.layer.regionId);
+                if (!card) return;
+
+                let hasOverlap = false;
+                regionGeoJSONs.forEach(other => {
+                    if (r.layer !== other.layer) {
+                        const intersection = turf.intersect(r.geoJSON, other.geoJSON);
+                        if (intersection) hasOverlap = true;
+                    }
+                });
+
+                const badge = card.querySelector('.overlap-badge');
+                if (hasOverlap) {
+                    card.classList.add('overlap-warning');
+                    if (badge) badge.style.display = 'block';
+                } else {
+                    card.classList.remove('overlap-warning');
+                    if (badge) badge.style.display = 'none';
+                }
+            });
+
+            if (showOnlyUnassigned) filterUnassignedMarkers();
+        }
+
+        // Filtrowanie nieprzypisanych punktów
+        const toggleUnassignedBtn = document.getElementById('toggleUnassignedBtn');
+        toggleUnassignedBtn.addEventListener('click', () => {
+            showOnlyUnassigned = !showOnlyUnassigned;
+            if (showOnlyUnassigned) {
+                toggleUnassignedBtn.innerText = 'Pokaż wszystkie punkty';
+                filterUnassignedMarkers();
+            } else {
+                toggleUnassignedBtn.innerText = 'Pokaż tylko nieprzypisane';
+                markersClusterGroup.clearLayers();
+                markersClusterGroup.addLayers(allMarkers);
+            }
+        });
+
+        function filterUnassignedMarkers() {
+            const unassigned = allMarkers.filter(m => !m.isAssigned);
+            markersClusterGroup.clearLayers();
+            markersClusterGroup.addLayers(unassigned);
         }
 
         function createRegionCard(id, defaultName, count, layer, color) {
@@ -726,6 +817,7 @@
                 <div class="region-stats">
                     📍 Liczba punktów: <b class="point-count">${count}</b>
                 </div>
+                <div class="overlap-badge">⚠️ Rejon nachodzi na inny!</div>
                 <div class="region-controls">
                     <div class="color-picker-wrapper">
                         <input type="color" class="color-picker" value="${color}">
@@ -744,12 +836,18 @@
                 }
             });
 
+            const titleInput = card.querySelector('.region-title-input');
+            titleInput.addEventListener('change', () => {
+                saveToLocalStorage();
+            });
+
             const colorPicker = card.querySelector('.color-picker');
             colorPicker.addEventListener('input', (evt) => {
                 const newColor = evt.target.value;
                 layer.regionColor = newColor;
                 layer.setStyle({ color: newColor, fillColor: newColor });
                 card.style.borderLeftColor = newColor;
+                saveToLocalStorage();
             });
 
             card.querySelector('.btn-zoom').addEventListener('click', (e) => {
@@ -763,14 +861,104 @@
                 if (selectedLayer === layer) selectRegion(null);
                 drawnItems.removeLayer(layer);
                 card.remove();
+                recalculateAllStats();
+                saveToLocalStorage();
             });
 
             document.getElementById('regionsList').appendChild(card);
         }
 
-        // Działający eksport do pliku KML
+        // Zapis stanu w localStorage
+        function saveToLocalStorage() {
+            const dataToSave = [];
+            drawnItems.eachLayer(layer => {
+                if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+                    const card = layer.regionId ? document.getElementById(layer.regionId) : null;
+                    const name = card ? card.querySelector('.region-title-input').value : 'Rejon';
+                    dataToSave.push({
+                        id: layer.regionId,
+                        name: name,
+                        color: layer.regionColor || '#3388ff',
+                        latLngs: layer.getLatLngs()
+                    });
+                }
+            });
+            localStorage.setItem('saved_map_regions', JSON.stringify(dataToSave));
+        }
+
+        // Odczyt stanu z localStorage przy ładowaniu strony
+        function loadFromLocalStorage() {
+            const raw = localStorage.getItem('saved_map_regions');
+            if (!raw) return;
+
+            try {
+                const regions = JSON.parse(raw);
+                regions.forEach(r => {
+                    const polygonLayer = L.polygon(r.latLngs, {
+                        color: r.color,
+                        fillColor: r.color,
+                        fillOpacity: 0.4,
+                        weight: 3
+                    });
+
+                    drawnItems.addLayer(polygonLayer);
+                    polygonLayer.regionColor = r.color;
+                    attachLayerEvents(polygonLayer);
+
+                    createRegionCard(r.id, r.name, 0, polygonLayer, r.color);
+                });
+
+                if (regions.length > 0) {
+                    recalculateAllStats();
+                    map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
+                }
+            } catch (err) {
+                console.error("Błąd wczytywania z localStorage:", err);
+            }
+        }
+
+        document.getElementById('resetStorageBtn').addEventListener('click', () => {
+            if (confirm('Czy na pewno chcesz wyczyścić wszystkie zapamiętane rejony z pamięci przeglądarki?')) {
+                localStorage.removeItem('saved_map_regions');
+                drawnItems.clearLayers();
+                document.getElementById('regionsList').innerHTML = `
+                    <div id="emptyInfo" style="text-align: center; color: #adb5bd; margin-top: 20px; font-size: 12px;">
+                        Brak narysowanych rejonów. Wczytaj pliki lub narysuj obszar ręcznie.
+                    </div>
+                `;
+                recalculateAllStats();
+            }
+        });
+
+        // Eksport podsumowania do pliku XLSX (Nazwa + Ilość punktów)
+        document.getElementById('exportXlsxBtn').addEventListener('click', () => {
+            const layers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            if (layers.length === 0) {
+                alert('Brak rejonów do wyeksportowania!');
+                return;
+            }
+
+            const exportData = layers.map((layer, index) => {
+                const card = layer.regionId ? document.getElementById(layer.regionId) : null;
+                const regionName = card ? card.querySelector('.region-title-input').value : `Rejon ${index + 1}`;
+                const pointCount = card ? parseInt(card.querySelector('.point-count').innerText) || 0 : 0;
+
+                return {
+                    "Nazwa rejonu": regionName,
+                    "Liczba punktów": pointCount
+                };
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Podsumowanie");
+
+            XLSX.writeFile(workbook, `podsumowanie_rejonow_${new Date().toISOString().slice(0,10)}.xlsx`);
+        });
+
+        // Eksport do pliku KML
         document.getElementById('exportKmlBtn').addEventListener('click', () => {
-            const layers = drawnItems.getLayers();
+            const layers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
             if (layers.length === 0) {
                 alert('Brak rejonów do wyeksportowania!');
                 return;
@@ -782,27 +970,26 @@
     <name>Wyeksportowane Rejony</name>\n`;
 
             layers.forEach((layer, index) => {
-                if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
-                    const card = layer.regionId ? document.getElementById(layer.regionId) : null;
-                    const inputName = card ? card.querySelector('.region-title-input').value : null;
-                    const regionName = inputName || `Rejon ${index + 1}`;
+                const card = layer.regionId ? document.getElementById(layer.regionId) : null;
+                const inputName = card ? card.querySelector('.region-title-input').value : null;
+                const regionName = inputName || `Rejon ${index + 1}`;
 
-                    const hexColor = layer.regionColor || "#3388ff";
-                    const kmlColor = hexToKmlColor(hexColor);
+                const hexColor = layer.regionColor || "#3388ff";
+                const kmlColor = hexToKmlColor(hexColor);
 
-                    const latLngs = layer.getLatLngs()[0];
-                    let coordsString = "";
-                    
-                    latLngs.forEach(ll => {
-                        coordsString += `${ll.lng},${ll.lat},0 `;
-                    });
-                    if (latLngs.length > 0) {
-                        coordsString += `${latLngs[0].lng},${latLngs[0].lat},0`;
-                    }
+                const latLngs = layer.getLatLngs()[0];
+                let coordsString = "";
+                
+                latLngs.forEach(ll => {
+                    coordsString += `${ll.lng},${ll.lat},0 `;
+                });
+                if (latLngs.length > 0) {
+                    coordsString += `${latLngs[0].lng},${latLngs[0].lat},0`;
+                }
 
-                    const styleId = `style_${layer.regionId || index}`;
+                const styleId = `style_${layer.regionId || index}`;
 
-                    kmlContent += `    <Style id="${styleId}">
+                kmlContent += `    <Style id="${styleId}">
       <LineStyle>
         <color>${kmlColor}</color>
         <width>3</width>
@@ -822,7 +1009,6 @@
         </outerBoundaryIs>
       </Polygon>
     </Placemark>\n`;
-                }
             });
 
             kmlContent += `  </Document>
@@ -838,6 +1024,9 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         });
+
+        // Wczytanie danych z localStorage przy uruchomieniu
+        loadFromLocalStorage();
     </script>
 </body>
 </html>
