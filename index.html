@@ -677,56 +677,91 @@
         let regionCounter = 1;
 
         map.on(L.Draw.Event.CREATED, function (e) {
-            recordState();
+    recordState();
 
-            const layer = e.layer;
+    const layer = e.layer;
 
-            if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
-                let assignedColor = "#3388ff";
-                let assignedName = `Rejon ${regionCounter++}`;
+    if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+        let assignedColor = "#3388ff";
+        let assignedName = `Rejon ${regionCounter++}`;
 
-                const newGeoJSON = layer.toGeoJSON();
-                let matchedExistingLayer = null;
+        // 1. Pobieramy czysty GeoJSON nowej warstwy
+        let newGeoJSON;
+        try {
+            newGeoJSON = layer.toGeoJSON();
+            // Normalizacja geometrii dla Turf.js
+            if (turf.cleanCoords) newGeoJSON = turf.cleanCoords(newGeoJSON);
+        } catch (err) {
+            console.error("Błąd konwersji nowej warstwy na GeoJSON:", err);
+        }
 
-                drawnItems.eachLayer(existingLayer => {
-                    if (!matchedExistingLayer && (existingLayer instanceof L.Polygon || existingLayer instanceof L.Rectangle)) {
-                        const existingGeoJSON = existingLayer.toGeoJSON();
-                        try {
-                            if (turf.booleanIntersect(newGeoJSON, existingGeoJSON) || 
-                                turf.booleanContains(existingGeoJSON, newGeoJSON) || 
-                                turf.booleanContains(newGeoJSON, existingGeoJSON)) {
-                                matchedExistingLayer = existingLayer;
-                            }
-                        } catch (err) {
-                            console.warn("Błąd sprawdzania geometrii przez Turf.js:", err);
+        let matchedExistingLayer = null;
+
+        // 2. Przeszukujemy istniejące warstwy ZANIM dodamy nową do drawnItems
+        if (newGeoJSON) {
+            drawnItems.eachLayer(existingLayer => {
+                if (!matchedExistingLayer && (existingLayer instanceof L.Polygon || existingLayer instanceof L.Rectangle)) {
+                    try {
+                        let existingGeoJSON = existingLayer.toGeoJSON();
+                        if (turf.cleanCoords) existingGeoJSON = turf.cleanCoords(existingGeoJSON);
+
+                        // Sprawdzanie przecinania lub zawierania (Turf.js)
+                        const intersects = turf.booleanIntersect(newGeoJSON, existingGeoJSON);
+                        const containsNew = turf.booleanContains(existingGeoJSON, newGeoJSON);
+                        const containsExisting = turf.booleanContains(newGeoJSON, existingGeoJSON);
+
+                        if (intersects || containsNew || containsExisting) {
+                            matchedExistingLayer = existingLayer;
                         }
+                    } catch (err) {
+                        console.warn("Błąd sprawdzania Turf.js dla warstwy:", err);
                     }
-                });
+                }
+            });
+        }
 
-                drawnItems.addLayer(layer);
+        // 3. Dodajemy nową warstwę do grupy drawnItems dopiero po weryfikacji
+        drawnItems.addLayer(layer);
 
-                if (matchedExistingLayer) {
-                    const existingName = matchedExistingLayer.regionName;
-                    const existingColor = matchedExistingLayer.regionColor || "#3388ff";
+        // 4. Jeśli wykryto nakładanie – natychmiast wywołujemy prompt/confirm
+        if (matchedExistingLayer) {
+            const existingName = matchedExistingLayer.regionName || "Istniejący rejon";
+            const existingColor = matchedExistingLayer.regionColor || "#3388ff";
 
-                    setTimeout(() => {
-                        const confirmJoin = confirm(`Narysowany obszar nachodzi na rejon "${existingName}". Czy chcesz włączyć go do rejonu "${existingName}"?`);
-                        
-                        if (confirmJoin) {
-                            assignedName = existingName;
-                            assignedColor = existingColor;
-                        }
+            // Krótkie opóźnienie (10ms) uwalnia wątek renderowania rysowania w Leaflet
+            setTimeout(() => {
+                const confirmJoin = window.confirm(`Narysowany obszar nachodzi na rejon "${existingName}".\n\nCzy chcesz włączyć go do rejonu "${existingName}"?`);
+                
+                if (confirmJoin) {
+                    assignedName = existingName;
+                    assignedColor = existingColor;
+                }
 
-                        layer.setStyle({ color: assignedColor, fillColor: assignedColor, fillOpacity: 0.35, weight: 3 });
-                        layer.regionColor = assignedColor;
-                        layer.regionName = assignedName;
-                        
-                        attachLayerEvents(layer);
-                        rebuildRegionsListUI();
-                        selectRegion(layer);
-                        recalculateAllStats();
-                        saveToLocalStorage();
-                    }, 50);
+                applyLayerSettings(layer, assignedName, assignedColor);
+            }, 10);
+        } else {
+            applyLayerSettings(layer, assignedName, assignedColor);
+        }
+    }
+});
+
+// Pomocnicza funkcja przypisująca styl i zdarzenia do warstwy
+function applyLayerSettings(layer, name, color) {
+    layer.setStyle({
+        color: color,
+        fillColor: color,
+        fillOpacity: 0.35,
+        weight: 3
+    });
+    layer.regionColor = color;
+    layer.regionName = name;
+
+    attachLayerEvents(layer);
+    rebuildRegionsListUI();
+    selectRegion(layer);
+    recalculateAllStats();
+    saveToLocalStorage();
+}, 50);
                 } else {
                     layer.setStyle({ color: assignedColor, fillColor: assignedColor, fillOpacity: 0.35, weight: 3 });
                     layer.regionColor = assignedColor;
