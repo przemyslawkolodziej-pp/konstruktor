@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa Rejonów - Edycja KML, KMZ, XLSX</title>
+    <title>Konstruktor Rejonów</title>
     
     <!-- Leaflet & Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -475,37 +475,45 @@
         yearSelect.addEventListener('change', updateWorkdaysDisplay);
 
         function createInteractiveMarker(lat, lng, title) {
-            const marker = L.circleMarker([lat, lng], {
-                radius: 4,
-                fillColor: "#7f8c8d",
-                color: "#2c3e50",
-                weight: 1,
-                opacity: 0.9,
-                fillOpacity: 0.8
-            });
+    // Używamy standardowego L.marker z opcją przeciągania (draggable)
+    const marker = L.marker([lat, lng], {
+        draggable: true,
+        title: title
+    });
 
-            marker.markerTitle = title;
-            
-            const popupContainer = document.createElement('div');
-            popupContainer.innerHTML = `<b>${escapeXml(title)}</b><br>`;
+    marker.markerTitle = title;
+    
+    // Zapisujemy stan przed rozpoczęciem przeciągania (dla Ctrl+Z)
+    marker.on('dragstart', () => {
+        recordState();
+    });
 
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'btn-delete-marker';
-            deleteBtn.innerText = '🗑️ Usuń punkt';
-            
-            deleteBtn.addEventListener('click', () => {
-                recordState();
-                markersClusterGroup.removeLayer(marker);
-                allMarkers = allMarkers.filter(m => m !== marker);
-                recalculateAllStats();
-                saveMarkersToLocalStorage();
-            });
+    // Po zakończeniu przeciągania aktualizujemy statystyki i zapisujemy stan
+    marker.on('dragend', () => {
+        recalculateAllStats();
+        saveMarkersToLocalStorage();
+    });
 
-            popupContainer.appendChild(deleteBtn);
-            marker.bindPopup(popupContainer);
+    const popupContainer = document.createElement('div');
+    popupContainer.innerHTML = `<b>${escapeXml(title)}</b><br>`;
 
-            return marker;
-        }
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn-delete-marker';
+    deleteBtn.innerText = '🗑️ Usuń punkt';
+    
+    deleteBtn.addEventListener('click', () => {
+        recordState();
+        markersClusterGroup.removeLayer(marker);
+        allMarkers = allMarkers.filter(m => m !== marker);
+        recalculateAllStats();
+        saveMarkersToLocalStorage();
+    });
+
+    popupContainer.appendChild(deleteBtn);
+    marker.bindPopup(popupContainer);
+
+    return marker;
+}
 
         function selectRegion(layer) {
             if (isEditing) saveCurrentEdits();
