@@ -547,10 +547,10 @@
     popupContent.style.flexDirection = 'column';
     popupContent.style.gap = '4px';
 
-    // Przycisk edycji
+    // Przycisk edycji całego rejonu
     const editAreaBtn = document.createElement('button');
     editAreaBtn.className = 'btn-action btn-edit-toggle';
-    editAreaBtn.innerText = '✏️ Edytuj ten obszar';
+    editAreaBtn.innerText = '✏️ Edytuj ten rejon';
     editAreaBtn.style.padding = '4px 8px';
     editAreaBtn.style.fontSize = '11px';
 
@@ -558,16 +558,23 @@
         e.stopPropagation();
         layer.closePopup();
         
-        // Włącz edycję tylko dla tego wybranego obszaru
+        // Zaznaczamy rejon
+        selectRegion(layer);
+
+        // Uruchamiamy edycję dla wszystkich obszarów należących do tego rejonu
         isEditing = true;
         toggleEditBtn.style.display = 'none';
         saveEditBtn.style.display = 'block';
-        
-        enableLayerEditing(layer);
-        selectRegion(layer);
+
+        const targetName = layer.regionName;
+        drawnItems.eachLayer(l => {
+            if (l.regionName === targetName) {
+                enableLayerEditing(l);
+            }
+        });
     });
 
-    // Przycisk usuwania
+    // Przycisk usuwania obszaru
     const deleteAreaBtn = document.createElement('button');
     deleteAreaBtn.className = 'btn-delete-marker';
     deleteAreaBtn.innerText = '🗑️ Usuń tylko ten obszar';
