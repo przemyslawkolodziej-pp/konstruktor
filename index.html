@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa Rejonów - Import Wielu Plików KML z Paskiem Postępu</title>
+    <title>Mapa Rejonów - Import Wielu Plików KML z Listą Postępu</title>
     
     <!-- Leaflet & Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -18,7 +18,7 @@
         
         /* Lewy Panel Boczny */
         #sidebar {
-            width: 360px;
+            width: 380px;
             height: 100%;
             background: #f8f9fa;
             border-right: 1px solid #dee2e6;
@@ -37,10 +37,38 @@
 
         .file-upload-box {
             background: #34495e;
-            padding: 10px;
+            padding: 12px;
             border-radius: 6px;
         }
-        .file-upload-box input { width: 100%; color: white; font-size: 12px; }
+        .file-upload-box input { width: 100%; color: white; font-size: 12px; cursor: pointer; }
+
+        /* Lista plików z postępem */
+        #fileQueueBox {
+            margin-top: 10px;
+            background: #2c3e50;
+            border-radius: 4px;
+            padding: 8px;
+            max-height: 140px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .file-queue-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: #ecf0f1;
+            padding: 3px 0;
+            border-bottom: 1px solid #3e5871;
+        }
+        .file-queue-item:last-child { border-bottom: none; }
+        .file-name { font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+        .file-status { font-size: 10px; padding: 2px 5px; border-radius: 3px; background: #7f8c8d; }
+        .status-waiting { background: #7f8c8d; }
+        .status-processing { background: #f39c12; color: #fff; }
+        .status-done { background: #2ecc71; color: #fff; }
+        .status-error { background: #e74c3c; color: #fff; }
 
         .actions-bar {
             padding: 10px 15px;
@@ -150,7 +178,7 @@
         /* Mapa */
         #map { flex: 1; height: 100%; }
 
-        /* Pasek postępu */
+        /* Pasek postępu głównego */
         .progress-container { width: 100%; background: #455a64; height: 8px; border-radius: 4px; margin-top: 8px; display: none; overflow: hidden; }
         .progress-bar { width: 0%; height: 100%; background: #2ecc71; transition: width 0.2s ease-in-out; }
         .status-text { font-size: 11px; color: #bdc3c7; margin-top: 4px; }
@@ -163,12 +191,15 @@
         <div class="sidebar-header">
             <h3>Wczytaj Pliki (XLSX, CSV, KML, KMZ)</h3>
             <div class="file-upload-box">
-                <!-- Dodano atrybut multiple do wyboru wielu plików -->
                 <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.kml,.kmz" multiple>
+                
                 <div id="progressContainer" class="progress-container">
                     <div id="progressBar" class="progress-bar"></div>
                 </div>
                 <div id="status" class="status-text"></div>
+
+                <!-- Lista kolejek plików -->
+                <div id="fileQueueBox"></div>
             </div>
         </div>
 
@@ -193,6 +224,7 @@
     <!-- BIBLIOTEKI JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -453,32 +485,66 @@
             });
         }
 
-        // 10. OBSŁUGA SEKWENCYJNEGO WG RYWANIA WIELU PLIKÓW
-        document.getElementById('fileInput').addEventListener('change', async function(e) {
+        // 10. ZAAWANSOWANA OBSŁUGA KOLEJKOWANIA I MONITOROWANIA POSTĘPU PLIKÓW
+        const fileInput = document.getElementById('fileInput');
+        const fileQueueBox = document.getElementById('fileQueueBox');
+
+        fileInput.addEventListener('change', async function(e) {
             const files = Array.from(e.target.files);
             if (files.length === 0) return;
+
+            // Czyszczenie i przygotowanie listy podglądu plików
+            fileQueueBox.innerHTML = '';
+            fileQueueBox.style.display = 'block';
+
+            files.forEach((file, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'file-queue-item';
+                itemDiv.id = `file-item-${index}`;
+                itemDiv.innerHTML = `
+                    <span class="file-name" title="${file.name}">${file.name}</span>
+                    <span class="file-status status-waiting" id="file-status-${index}">Oczekuje...</span>
+                `;
+                fileQueueBox.appendChild(itemDiv);
+            });
 
             let totalPolygons = 0;
             let totalMarkers = 0;
 
-            updateProgress(0, `Rozpoczynanie wczytywania (${files.length} plik/pliki)...`);
+            updateProgress(0, `Rozpoczynam wgrywanie ${files.length} plików...`);
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
+                const statusBadge = document.getElementById(`file-status-${i}`);
+                
+                // Zmiana statusu na "Przetwarzanie"
+                statusBadge.className = 'file-status status-processing';
+                statusBadge.innerText = 'Wczytywanie...';
+
                 const percent = Math.round(((i) / files.length) * 100);
-                updateProgress(percent, `Przetwarzanie pliku ${i + 1} z ${files.length}: ${file.name}`);
+                updateProgress(percent, `Przetwarzanie pliku ${i + 1} z ${files.length}`);
 
-                // Drobne opóźnienie dla płynnego odświeżania UI
-                await new Promise(r => setTimeout(r, 50));
+                // Krótkie opóźnienie dla wymuszenia prerenderowania przeglądarki
+                await new Promise(r => setTimeout(r, 60));
 
-                const result = await processSingleFile(file);
-                totalPolygons += result.polygons;
-                totalMarkers += result.markers;
+                try {
+                    const result = await processSingleFile(file);
+                    totalPolygons += result.polygons;
+                    totalMarkers += result.markers;
+
+                    // Sukces
+                    statusBadge.className = 'file-status status-done';
+                    statusBadge.innerText = 'Gotowe ✓';
+                } catch (err) {
+                    console.error("Błąd przetwarzania pliku:", file.name, err);
+                    statusBadge.className = 'file-status status-error';
+                    statusBadge.innerText = 'Błąd ✕';
+                }
             }
 
-            updateProgress(100, `Zakończono! Wczytano łącznie: ${totalPolygons} obszarów, ${totalMarkers} punktów.`);
+            updateProgress(100, `Gotowe! Łącznie zaimportowano: ${totalPolygons} obszarów, ${totalMarkers} punktów.`);
 
-            // Dopasowanie widoku po przetworzeniu wszystkich plików
+            // Odświeżenie granic widoku mapy
             if (drawnItems.getLayers().length > 0) {
                 map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
             } else if (markersClusterGroup.getLayers().length > 0) {
@@ -486,23 +552,29 @@
             }
 
             recalculateAllRegions();
+
+            // Reset pola wyboru pliku, aby można było ponawiać operację z tymi samymi plikami
+            fileInput.value = '';
         });
 
         // Przetwarzanie pojedynczego pliku
         function processSingleFile(file) {
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
                 const fileName = file.name.toLowerCase();
 
                 if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
                     const reader = new FileReader();
                     reader.readAsArrayBuffer(file);
                     reader.onload = function(evt) {
-                        const data = new Uint8Array(evt.target.result);
-                        const workbook = XLSX.read(data, { type: 'array' });
-                        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                        const count = renderTableData(jsonData);
-                        resolve({ polygons: 0, markers: count });
+                        try {
+                            const data = new Uint8Array(evt.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                            const count = renderTableData(jsonData);
+                            resolve({ polygons: 0, markers: count });
+                        } catch(e) { reject(e); }
                     };
+                    reader.onerror = reject;
                 } else if (fileName.endsWith('.csv')) {
                     Papa.parse(file, {
                         header: true,
@@ -510,10 +582,11 @@
                         complete: function(results) {
                             const count = renderTableData(results.data);
                             resolve({ polygons: 0, markers: count });
-                        }
+                        },
+                        error: reject
                     });
                 } else if (fileName.endsWith('.kmz') || fileName.endsWith('.kml')) {
-                    handleKmlKmzFile(file, resolve);
+                    handleKmlKmzFile(file, resolve, reject);
                 } else {
                     resolve({ polygons: 0, markers: 0 });
                 }
@@ -540,7 +613,7 @@
             return newMarkers.length;
         }
 
-        function handleKmlKmzFile(file, resolve) {
+        function handleKmlKmzFile(file, resolve, reject) {
             const isKmz = file.name.toLowerCase().endsWith('.kmz');
             const reader = new FileReader();
 
@@ -550,17 +623,22 @@
                     JSZip.loadAsync(evt.target.result).then(zip => {
                         const kmlFile = Object.keys(zip.files).find(name => name.toLowerCase().endsWith('.kml'));
                         if (kmlFile) return zip.files[kmlFile].async("string");
+                        else throw new Error("Brak pliku .kml w archiwum .kmz");
                     }).then(xmlStr => {
                         const res = parseAndRenderKmlString(xmlStr);
                         resolve(res);
-                    });
+                    }).catch(reject);
                 };
+                reader.onerror = reject;
             } else {
                 reader.readAsText(file);
                 reader.onload = function(evt) {
-                    const res = parseAndRenderKmlString(evt.target.result);
-                    resolve(res);
+                    try {
+                        const res = parseAndRenderKmlString(evt.target.result);
+                        resolve(res);
+                    } catch(e) { reject(e); }
                 };
+                reader.onerror = reject;
             }
         }
 
