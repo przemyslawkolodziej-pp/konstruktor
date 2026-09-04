@@ -18,6 +18,52 @@
         * { box-sizing: border-box; }
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; overflow: hidden; }
         
+        /* Styl dla nakładki logowania */
+        #loginOverlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(44, 62, 80, 0.95);
+            z-index: 99999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        .login-card {
+            background: #ffffff;
+            color: #333333;
+            padding: 24px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            width: 320px;
+            text-align: center;
+        }
+
+        .login-card h3 { margin-top: 0; color: #2c3e50; font-size: 18px; }
+        .login-card input[type="password"] {
+            width: 100%;
+            padding: 8px 10px;
+            margin: 12px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 8px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-login:hover { background: #219653; }
+        .login-error { color: #e74c3c; font-size: 11px; margin-top: 8px; display: none; }
+
         .sidebar {
             width: 300px;
             height: 100%;
@@ -115,6 +161,9 @@
         .btn-save-toggle { background: #2980b9; color: white; display: none; }
         .btn-save-toggle:hover { background: #1c5980; }
 
+        .btn-logout { background: #7f8c8d; color: white; }
+        .btn-logout:hover { background: #6c757d; }
+
         .btn-reset-storage { background: #e74c3c; color: white; font-size: 10px; padding: 3px 6px; border: none; border-radius: 3px; cursor: pointer; margin-left: auto; }
         .btn-reset-storage:hover { background: #c0392b; }
 
@@ -149,7 +198,6 @@
         }
         .btn-delete-marker:hover { background: #c0392b; }
 
-        /* Styl dla czystego tła przeźroczystej ikony pinezki */
         .custom-pin-marker {
             background: none !important;
             border: none !important;
@@ -160,6 +208,19 @@
     </style>
 </head>
 <body>
+
+    <!-- NAKŁADKA LOGOWANIA -->
+    <div id="loginOverlay">
+        <div class="login-card">
+            <h3>🔒 Dostęp zablokowany</h3>
+            <p style="font-size: 12px; color: #666;">Wprowadź hasło, aby uzyskać dostęp do aplikacji.</p>
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <input type="password" id="passwordInput" placeholder="Wpisz hasło..." required autofocus>
+                <button type="submit" class="btn-login">Zaloguj się</button>
+            </form>
+            <div id="loginError" class="login-error">Nieprawidłowe hasło!</div>
+        </div>
+    </div>
 
     <!-- LEWY PANEL: Pliki, Akcje, Ustawienia -->
     <div id="sidebar-left" class="sidebar">
@@ -199,6 +260,7 @@
             <button id="saveEditBtn" class="btn-action btn-save-toggle">💾 Zapisz edycję</button>
             <button id="exportXlsxBtn" class="btn-action btn-export-xlsx">📊 Eksportuj podsumowanie (XLSX)</button>
             <button id="exportKmlBtn" class="btn-action btn-export-kml">📥 Eksportuj rejony do KML</button>
+            <button id="logoutBtn" class="btn-action btn-logout">🚪 Wyloguj się</button>
         </div>
     </div>
 
@@ -230,13 +292,59 @@
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
     <script>
-        // Pomocnicze wyszukiwanie kart w DOM bez błędów selektorów
+        // LOGIKA LOGOWANIA Z HASHINGIEM SHA-256
+        const PASSWORD_HASH = "919241645f838f77f1f7f8421335c061358791385afec6918751b14debd2e24f";
+
+        async function sha256(str) {
+            const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+            return Array.from(new Uint8Array(buf))
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
+        }
+
+        function checkAuthStatus() {
+            const isAuth = localStorage.getItem('app_authenticated');
+            const overlay = document.getElementById('loginOverlay');
+
+            if (isAuth === 'true') {
+                overlay.style.display = 'none';
+            } else {
+                overlay.style.display = 'flex';
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const inputPass = document.getElementById('passwordInput').value;
+            const errorEl = document.getElementById('loginError');
+
+            const inputHash = await sha256(inputPass);
+
+            if (inputHash === PASSWORD_HASH) {
+                localStorage.setItem('app_authenticated', 'true');
+                document.getElementById('loginOverlay').style.display = 'none';
+                document.getElementById('passwordInput').value = '';
+                errorEl.style.display = 'none';
+            } else {
+                errorEl.style.display = 'block';
+            }
+        }
+
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            if (confirm('Czy na pewno chcesz się wylogować?')) {
+                localStorage.removeItem('app_authenticated');
+                checkAuthStatus();
+            }
+        });
+
+        checkAuthStatus();
+
+        // LOGIKA APILKACJI MAPOWEJ
         function findCardByName(name) {
             const cards = document.querySelectorAll('.region-card');
             return Array.from(cards).find(c => c.getAttribute('data-region-name') === name);
         }
 
-        // Pomocnicze spłaszczanie struktury współrzędnych Leaflet
         function getFlatLatLngs(layer) {
             let latLngs = layer.getLatLngs();
             while (Array.isArray(latLngs) && latLngs.length > 0 && Array.isArray(latLngs[0])) {
@@ -245,7 +353,6 @@
             return latLngs;
         }
 
-        // Pomocnicze tworzenie ikony SVG dla pinezki
         function createPinIcon(color) {
             const svgIcon = `
                 <svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg">
@@ -295,7 +402,6 @@
         let processedFilesSet = new Set();
         let allMarkers = [];
 
-        // System historii akcji (Undo)
         const undoStack = [];
         const MAX_UNDO = 30;
 
