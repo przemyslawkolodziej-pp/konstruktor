@@ -243,7 +243,7 @@
         const toggleEditBtn = document.getElementById('toggleEditBtn');
         const saveEditBtn = document.getElementById('saveEditBtn');
         const undoBtn = document.getElementById('undoBtn');
-        const processedFilesSet = new Set();
+        let processedFilesSet = new Set();
         let allMarkers = [];
 
         // System historii akcji (Undo)
@@ -251,16 +251,28 @@
         const MAX_UNDO = 30;
 
         function recordState() {
-            const snapshot = [];
+            const snapshotPolygons = [];
             drawnItems.eachLayer(layer => {
                 if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
-                    snapshot.push({
+                    snapshotPolygons.push({
                         name: layer.regionName || 'Rejon',
                         color: layer.regionColor || '#3388ff',
-                        latLngs: layer.getLatLngs()
+                        latLngs: JSON.parse(JSON.stringify(layer.getLatLngs()))
                     });
                 }
             });
+
+            const snapshotMarkers = allMarkers.map(m => ({
+                lat: m.getLatLng().lat,
+                lng: m.getLatLng().lng,
+                title: m.markerTitle || 'Punkt'
+            }));
+
+            const snapshot = {
+                polygons: snapshotPolygons,
+                markers: snapshotMarkers,
+                processedFiles: new Set(processedFilesSet)
+            };
 
             undoStack.push(snapshot);
             if (undoStack.length > MAX_UNDO) {
@@ -280,10 +292,15 @@
             }
 
             const previousState = undoStack.pop();
+
+            // Przywróć stan plików
+            processedFilesSet = new Set(previousState.processedFiles);
+
+            // Przywróć poligony
             drawnItems.clearLayers();
             selectRegion(null);
 
-            previousState.forEach(item => {
+            previousState.polygons.forEach(item => {
                 const polygonLayer = L.polygon(item.latLngs, {
                     color: item.color,
                     fillColor: item.color,
@@ -296,6 +313,16 @@
                 polygonLayer.regionName = item.name;
                 attachLayerEvents(polygonLayer);
             });
+
+            // Przywróć punkty
+            markersClusterGroup.clearLayers();
+            allMarkers = [];
+
+            previousState.markers.forEach(pm => {
+                const m = createInteractiveMarker(pm.lat, pm.lng, pm.title);
+                allMarkers.push(m);
+            });
+            markersClusterGroup.addLayers(allMarkers);
 
             rebuildRegionsListUI();
             recalculateAllStats();
@@ -433,6 +460,8 @@
                 opacity: 0.9,
                 fillOpacity: 0.8
             });
+
+            marker.markerTitle = title;
             
             const popupContainer = document.createElement('div');
             popupContainer.innerHTML = `<b>${escapeXml(title)}</b><br>`;
@@ -442,6 +471,7 @@
             deleteBtn.innerText = '🗑️ Usuń punkt';
             
             deleteBtn.addEventListener('click', () => {
+                recordState();
                 markersClusterGroup.removeLayer(marker);
                 allMarkers = allMarkers.filter(m => m !== marker);
                 recalculateAllStats();
@@ -501,6 +531,13 @@
             }
             if (layer.editing) {
                 layer.editing.enable();
+
+                // Rejestracja zdarzeń przeciągania wierzchołków
+                if (!layer._hasUndoEvents) {
+                    layer.on('editstart', () => recordState());
+                    layer.on('dragstart', () => recordState());
+                    layer._hasUndoEvents = true;
+                }
             }
         }
 
@@ -516,13 +553,14 @@
                 return;
             }
 
-            recordState(); // Zapis stanu przed edycją węzłów
+            recordState();
 
             isEditing = true;
             toggleEditBtn.style.display = 'none';
             saveEditBtn.style.display = 'block';
 
             if (selectedLayer) {
+                // Jeśli edycja uruchomiona z panelu głównego przy zaznaczonym rejonie -> edytuj tylko obszary tego rejonu
                 const targetName = selectedLayer.regionName;
                 drawnItems.eachLayer(layer => {
                     if (layer.regionName === targetName) {
@@ -530,6 +568,7 @@
                     }
                 });
             } else {
+                // Jeśli żaden rejon nie jest zaznaczony -> edytuj wszystkie na mapie
                 drawnItems.eachLayer(layer => {
                     enableLayerEditing(layer);
                 });
@@ -601,7 +640,7 @@
         let regionCounter = 1;
 
         map.on(L.Draw.Event.CREATED, function (e) {
-            recordState(); // Zapis stanu przed dodaniem nowego rejonu
+            recordState();
 
             const layer = e.layer;
             drawnItems.addLayer(layer);
@@ -623,7 +662,7 @@
             }
         });
 
-        function attachLayerEvents(layer) {
+       function attachLayerEvents(layer) {
             const popupContent = document.createElement('div');
             popupContent.style.textAlign = 'center';
             popupContent.style.display = 'flex';
@@ -632,7 +671,7 @@
 
             const editAreaBtn = document.createElement('button');
             editAreaBtn.className = 'btn-action btn-edit-toggle';
-            editAreaBtn.innerText = '✏️ Edytuj ten rejon';
+            editAreaBtn.innerText = '✏️ Edytuj obszar';
             editAreaBtn.style.padding = '4px 8px';
             editAreaBtn.style.fontSize = '11px';
 
@@ -648,12 +687,8 @@
                 toggleEditBtn.style.display = 'none';
                 saveEditBtn.style.display = 'block';
 
-                const targetName = layer.regionName;
-                drawnItems.eachLayer(l => {
-                    if (l.regionName === targetName) {
-                        enableLayerEditing(l);
-                    }
-                });
+                // Włącz edycję TYLKO dla tego pojedynczego obszaru
+                enableLayerEditing(layer);
             });
 
             const deleteAreaBtn = document.createElement('button');
