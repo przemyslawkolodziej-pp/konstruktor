@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa Rejonów - Edycja KML, KMZ, XLSX</title>
+    <title>Konstruktor rejonów</title>
     
     <!-- Leaflet & Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -79,7 +79,6 @@
         }
         .btn-filter-unassigned:hover { background: #533f03; }
 
-        /* Sekcja wyboru miesiąca i dni roboczych */
         .workdays-bar {
             background: #e8f4f8; padding: 6px 10px; border-bottom: 1px solid #d0e1e9;
             display: flex; justify-content: space-between; align-items: center; font-size: 11px;
@@ -115,7 +114,6 @@
 
         #regionsList { flex: 1; overflow-y: auto; padding: 6px 8px; }
 
-        /* Kompaktowe karty na liście */
         .region-card {
             background: white; border: 1px solid #e0e0e0; border-radius: 4px;
             padding: 4px 6px; margin-bottom: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
@@ -172,7 +170,6 @@
             <button id="toggleUnassignedBtn" class="btn-filter-unassigned">Pokaż tylko nieprzypisane</button>
         </div>
 
-        <!-- Sekcja wyboru miesiąca i obliczania dni roboczych -->
         <div class="workdays-bar">
             <div>
                 <select id="monthSelect"></select>
@@ -213,8 +210,6 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet-snap@0.2.0/leaflet.snap.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.9.3/src/leaflet.geometryutil.js"></script>
 
     <script>
         const map = L.map('map').setView([52.237, 21.017], 6);
@@ -227,7 +222,6 @@
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
 
-        // Inicjalizacja Rysowania
         const drawControl = new L.Control.Draw({
             edit: false,
             draw: {
@@ -246,7 +240,6 @@
         const processedFilesSet = new Set();
         let allMarkers = [];
 
-        // Logika obliczania dni roboczych (z uwzględnieniem polskich dni wolnych)
         function getEasterSunday(year) {
             const a = year % 19;
             const b = Math.floor(year / 100);
@@ -267,15 +260,8 @@
 
         function getPolishHolidays(year) {
             const holidays = [
-                `${year}-01-01`, // Nowy Rok
-                `${year}-01-06`, // Trzech Króli
-                `${year}-05-01`, // Święto Pracy
-                `${year}-05-03`, // Święto Konstytucji
-                `${year}-08-15`, // Wniebowzięcie NMP
-                `${year}-11-01`, // Wszystkich Świętych
-                `${year}-11-11`, // Święto Niepodległości
-                `${year}-12-25`, // Boże Narodzenie
-                `${year}-12-26`  // Drugi Dzień Bożego Narodzenia
+                `${year}-01-01`, `${year}-01-06`, `${year}-05-01`, `${year}-05-03`,
+                `${year}-08-15`, `${year}-11-01`, `${year}-11-11`, `${year}-12-25`, `${year}-12-26`
             ];
 
             const easter = getEasterSunday(year);
@@ -316,7 +302,6 @@
             return count;
         }
 
-        // Inicjalizacja kontrolek wyboru miesiąca/roku
         const monthSelect = document.getElementById('monthSelect');
         const yearSelect = document.getElementById('yearSelect');
         const workdaysCountEl = document.getElementById('workdaysCount');
@@ -359,8 +344,16 @@
         monthSelect.addEventListener('change', updateWorkdaysDisplay);
         yearSelect.addEventListener('change', updateWorkdaysDisplay);
 
+        // Tworzenie mniejszych punktów w postaci CircleMarker
         function createInteractiveMarker(lat, lng, title) {
-            const marker = L.marker([lat, lng], { draggable: true });
+            const marker = L.circleMarker([lat, lng], {
+                radius: 4,          // Mały rozmiar punktu (promień 4px)
+                fillColor: "#7f8c8d",// Domyślny kolor dla punktów nieprzypisanych
+                color: "#2c3e50",    // Kolor obramowania
+                weight: 1,
+                opacity: 0.9,
+                fillOpacity: 0.8
+            });
             
             const popupContainer = document.createElement('div');
             popupContainer.innerHTML = `<b>${escapeXml(title)}</b><br>`;
@@ -377,10 +370,6 @@
 
             popupContainer.appendChild(deleteBtn);
             marker.bindPopup(popupContainer);
-
-            marker.on('dragend', () => {
-                recalculateAllStats();
-            });
 
             return marker;
         }
@@ -552,36 +541,61 @@
         });
 
         function attachLayerEvents(layer) {
-            const popupContent = document.createElement('div');
-            popupContent.style.textAlign = 'center';
-            
-            const deleteAreaBtn = document.createElement('button');
-            deleteAreaBtn.className = 'btn-delete-marker';
-            deleteAreaBtn.innerText = '🗑️ Usuń tylko ten obszar';
-            deleteAreaBtn.style.marginTop = '4px';
+    const popupContent = document.createElement('div');
+    popupContent.style.textAlign = 'center';
+    popupContent.style.display = 'flex';
+    popupContent.style.flexDirection = 'column';
+    popupContent.style.gap = '4px';
 
-            deleteAreaBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                disableLayerEditing(layer);
-                drawnItems.removeLayer(layer);
-                
-                if (selectedLayer === layer) {
-                    selectRegion(null);
-                }
+    // Przycisk edycji
+    const editAreaBtn = document.createElement('button');
+    editAreaBtn.className = 'btn-action btn-edit-toggle';
+    editAreaBtn.innerText = '✏️ Edytuj ten obszar';
+    editAreaBtn.style.padding = '4px 8px';
+    editAreaBtn.style.fontSize = '11px';
 
-                rebuildRegionsListUI();
-                recalculateAllStats();
-                saveToLocalStorage();
-            });
+    editAreaBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        layer.closePopup();
+        
+        // Włącz edycję tylko dla tego wybranego obszaru
+        isEditing = true;
+        toggleEditBtn.style.display = 'none';
+        saveEditBtn.style.display = 'block';
+        
+        enableLayerEditing(layer);
+        selectRegion(layer);
+    });
 
-            popupContent.appendChild(deleteAreaBtn);
-            layer.bindPopup(popupContent);
+    // Przycisk usuwania
+    const deleteAreaBtn = document.createElement('button');
+    deleteAreaBtn.className = 'btn-delete-marker';
+    deleteAreaBtn.innerText = '🗑️ Usuń tylko ten obszar';
+    deleteAreaBtn.style.marginTop = '0';
 
-            layer.on('click', function (e) {
-                L.DomEvent.stopPropagation(e);
-                selectRegion(layer);
-            });
+    deleteAreaBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        disableLayerEditing(layer);
+        drawnItems.removeLayer(layer);
+        
+        if (selectedLayer === layer) {
+            selectRegion(null);
         }
+
+        rebuildRegionsListUI();
+        recalculateAllStats();
+        saveToLocalStorage();
+    });
+
+    popupContent.appendChild(editAreaBtn);
+    popupContent.appendChild(deleteAreaBtn);
+    layer.bindPopup(popupContent);
+
+    layer.on('click', function (e) {
+        L.DomEvent.stopPropagation(e);
+        selectRegion(layer);
+    });
+}
 
         const fileInput = document.getElementById('fileInput');
         const processFilesBtn = document.getElementById('processFilesBtn');
@@ -926,13 +940,15 @@
             return newMarkers.length;
         }
 
+        // Przypisywanie kolorów rejonu do punktów wewnątrz nich
         function recalculateAllStats() {
             const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
             
             const preparedLayers = regionLayers.map(layer => ({
                 layer: layer,
                 geoJSON: layer.toGeoJSON(),
-                name: layer.regionName || 'Bez nazwy'
+                name: layer.regionName || 'Bez nazwy',
+                color: layer.regionColor || '#3388ff'
             }));
 
             let unassignedCount = 0;
@@ -946,12 +962,14 @@
                 const latLng = marker.getLatLng();
                 const turfPoint = turf.point([latLng.lng, latLng.lat]);
                 let isInsideAny = false;
+                let matchedColor = null;
 
                 const matchedNames = new Set();
                 preparedLayers.forEach(pl => {
                     if (turf.booleanPointInPolygon(turfPoint, pl.geoJSON)) {
                         matchedNames.add(pl.name);
                         isInsideAny = true;
+                        matchedColor = pl.color; // Przechwytujemy kolor rejonu
                     }
                 });
 
@@ -960,7 +978,14 @@
                 });
 
                 marker.isAssigned = isInsideAny;
-                if (!isInsideAny) unassignedCount++;
+
+                // Ustawianie koloru punktu (kolor rejonu lub szary nieprzypisany)
+                if (isInsideAny && matchedColor) {
+                    marker.setStyle({ fillColor: matchedColor, color: '#111111' });
+                } else {
+                    marker.setStyle({ fillColor: '#7f8c8d', color: '#2c3e50' });
+                    unassignedCount++;
+                }
             });
 
             const workdays = parseInt(workdaysCountEl.innerText) || 0;
@@ -1093,6 +1118,7 @@
                     l.setStyle({ color: newColor, fillColor: newColor });
                 });
                 card.style.borderLeftColor = newColor;
+                recalculateAllStats(); // Odświeża kolory punktów w rejonie
                 saveToLocalStorage();
             });
 
