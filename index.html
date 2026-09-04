@@ -172,7 +172,6 @@
     <!-- Biblioteki JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -201,29 +200,54 @@
         });
         map.addControl(drawControl);
 
-        // Geocoder
+        // Tymczasowy znacznik wyszukiwania adresów
+        let searchMarker = null;
+
+        function clearSearchMarker() {
+            if (searchMarker) {
+                map.removeLayer(searchMarker);
+                searchMarker = null;
+            }
+        }
+
         L.Control.geocoder({
             defaultMarkGeocode: false,
             placeholder: "Szukaj adresu...",
             errorMessage: "Nie znaleziono adresu."
         })
         .on('markgeocode', function(e) {
+            clearSearchMarker();
+
             const bbox = e.geocode.bbox;
             const poly = L.polygon([
                 bbox.getSouthEast(), bbox.getNorthEast(),
                 bbox.getNorthWest(), bbox.getSouthWest()
             ]);
             map.fitBounds(poly.getBounds());
-            L.marker(e.geocode.center).bindPopup(`<b>${escapeXml(e.geocode.name)}</b>`).addTo(map).openPopup();
+
+            // Utworzenie tymczasowego markera
+            searchMarker = L.marker(e.geocode.center)
+                .bindPopup(`<b>${escapeXml(e.geocode.name)}</b>`)
+                .addTo(map)
+                .openPopup();
+
+            // Usunięcie markera przy zamknięciu popupu
+            searchMarker.on('popupclose', function() {
+                clearSearchMarker();
+            });
         })
         .addTo(map);
+
+        // Usunięcie tymczasowego markera przy kliknięciu gdziekolwiek na mapie
+        map.on('click', function() {
+            clearSearchMarker();
+        });
 
         const markersClusterGroup = L.markerClusterGroup({ chunkedLoading: true });
         map.addLayer(markersClusterGroup);
 
         let regionCounter = 1;
 
-        // Tworzenie nowego kształtu ręcznie
         map.on(L.Draw.Event.CREATED, function (e) {
             const layer = e.layer;
             drawnItems.addLayer(layer);
@@ -241,7 +265,6 @@
             }
         });
 
-        // 🔄 Zdarzenie edycji kształtów (przesuwanie wierzchołków)
         map.on(L.Draw.Event.EDITED, function (e) {
             const layers = e.layers;
             layers.eachLayer(function (layer) {
@@ -255,7 +278,6 @@
             });
         });
 
-        // 🗑️ Zdarzenie usunięcia kształtu przez pasek narzędzi edycji
         map.on(L.Draw.Event.DELETED, function (e) {
             const layers = e.layers;
             layers.eachLayer(function (layer) {
@@ -481,7 +503,6 @@
                             fillOpacity: 0.4
                         });
 
-                        // 🔑 DODANIE WARSTWY DO drawnItems Pozwala na jej edycję!
                         drawnItems.addLayer(polygonLayer);
                         polygonLayer.regionColor = polyColor;
 
