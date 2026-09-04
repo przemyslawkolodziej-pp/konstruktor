@@ -123,7 +123,6 @@
         }
         .region-card:hover { border-color: #aaa; }
         .region-card.selected { box-shadow: 0 0 0 2px #e67e22; background: #fffdf9; }
-        .region-card.overlap-warning { border-color: #e74c3c !important; background: #fdf2f2; }
 
         .region-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
         .region-title-input { font-weight: bold; border: 1px solid transparent; padding: 1px 3px; border-radius: 3px; width: 100%; font-size: 11px; }
@@ -133,8 +132,6 @@
         .region-controls { display: flex; gap: 4px; align-items: center; }
         .color-picker-wrapper { display: flex; align-items: center; gap: 2px; font-size: 10px; color: #666; }
         .color-picker { border: none; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: none; padding: 0; }
-
-        .overlap-badge { color: #d63031; font-size: 9px; font-weight: bold; display: none; margin-bottom: 2px; }
 
         .btn { padding: 2px 5px; font-size: 10px; border: none; border-radius: 3px; cursor: pointer; }
         .btn-zoom { background: #e9ecef; color: #495057; }
@@ -417,6 +414,10 @@
                     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }
                 toggleEditBtn.innerText = '✏️ Edytuj zaznaczony rejon';
+
+                if (!isEditing) {
+                    selectedLayer.openPopup();
+                }
             } else {
                 toggleEditBtn.innerText = '✏️ Edytuj wszystkie rejony';
             }
@@ -551,6 +552,31 @@
         });
 
         function attachLayerEvents(layer) {
+            const popupContent = document.createElement('div');
+            popupContent.style.textAlign = 'center';
+            
+            const deleteAreaBtn = document.createElement('button');
+            deleteAreaBtn.className = 'btn-delete-marker';
+            deleteAreaBtn.innerText = '🗑️ Usuń tylko ten obszar';
+            deleteAreaBtn.style.marginTop = '4px';
+
+            deleteAreaBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                disableLayerEditing(layer);
+                drawnItems.removeLayer(layer);
+                
+                if (selectedLayer === layer) {
+                    selectRegion(null);
+                }
+
+                rebuildRegionsListUI();
+                recalculateAllStats();
+                saveToLocalStorage();
+            });
+
+            popupContent.appendChild(deleteAreaBtn);
+            layer.bindPopup(popupContent);
+
             layer.on('click', function (e) {
                 L.DomEvent.stopPropagation(e);
                 selectRegion(layer);
@@ -953,8 +979,6 @@
                     const perDay = workdays > 0 ? Math.round(count / workdays) : 0;
                     pointPerDayEl.innerText = perDay;
                 }
-
-                
             });
 
             document.getElementById('unassignedCount').innerText = unassignedCount;
@@ -1032,7 +1056,7 @@
                     <span>📅 Na dzień: <b class="point-per-day">0</b></span>
                     <span style="font-size: 9px; color: #888; flex-basis: 100%;">Obszarów: ${groupLayers.length}</span>
                 </div>
-                             <div class="region-controls">
+                <div class="region-controls">
                     <div class="color-picker-wrapper">
                         <input type="color" class="color-picker" value="${color}">
                         <span>Kolor</span>
