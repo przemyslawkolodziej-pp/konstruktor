@@ -3,70 +3,171 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa z XLSX, CSV, KML i Rysowaniem Rejonów</title>
+    <title>Mapa Rejonów - Edycja i Przeliczanie na Żywo</title>
     
-    <!-- Leaflet CSS -->
+    <!-- Leaflet & Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-    <!-- Marker Cluster CSS (dla wydajności 20k punktów) -->
+    <!-- Marker Cluster CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     
     <style>
-        body { margin: 0; padding: 0; font-family: sans-serif; }
-        #map { height: 100vh; width: 100vw; }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; overflow: hidden; }
         
-        .control-panel {
-            position: absolute;
-            top: 10px;
-            right: 10px;
+        /* Lewy Panel Boczny */
+        #sidebar {
+            width: 360px;
+            height: 100%;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            display: flex;
+            flex-direction: column;
             z-index: 1000;
-            background: white;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+        }
+
+        .sidebar-header {
             padding: 15px;
+            background: #2c3e50;
+            color: white;
+        }
+        .sidebar-header h3 { margin: 0 0 10px 0; font-size: 16px; }
+
+        .file-upload-box {
+            background: #34495e;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .file-upload-box input { width: 100%; color: white; font-size: 12px; }
+
+        /* Lista Rejonów */
+        #regionsList {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        .region-card {
+            background: white;
+            border: 1px solid #e0e0e0;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            width: 320px;
+            padding: 12px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-left: 5px solid #3388ff;
+            transition: all 0.2s ease;
         }
-        .control-panel h4 { margin: 0 0 10px 0; font-size: 14px; }
-        .control-panel input[type="file"] { width: 100%; margin-bottom: 8px; box-sizing: border-box; }
-        
-        /* Pasek postępu */
-        .progress-container {
+
+        .region-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .region-title-input {
+            font-weight: bold;
+            border: 1px solid transparent;
+            padding: 4px 6px;
+            border-radius: 4px;
             width: 100%;
-            background-color: #e0e0e0;
-            border-radius: 4px;
-            margin-top: 10px;
-            display: none;
+            font-size: 14px;
         }
-        .progress-bar {
-            width: 0%;
-            height: 12px;
-            background-color: #4CAF50;
-            border-radius: 4px;
-            transition: width 0.2s;
+        .region-title-input:hover, .region-title-input:focus {
+            border-color: #ccc;
+            background: #fff;
         }
-        .status { font-size: 12px; margin-top: 6px; color: #333; }
+
+        .region-stats {
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 10px;
+            background: #f1f3f5;
+            padding: 6px 10px;
+            border-radius: 4px;
+        }
+
+        .region-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .color-picker-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .color-picker {
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            background: none;
+        }
+
+        .btn {
+            padding: 5px 10px;
+            font-size: 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-zoom { background: #e9ecef; color: #495057; }
+        .btn-zoom:hover { background: #dee2e6; }
+        .btn-delete { background: #ffe3e3; color: #dc3545; margin-left: auto; }
+        .btn-delete:hover { background: #ffc9c9; }
+
+        /* Mapa */
+        #map { flex: 1; height: 100%; }
+
+        /* Pasek postępu */
+        .progress-container { width: 100%; background: #455a64; height: 6px; border-radius: 3px; margin-top: 8px; display: none; }
+        .progress-bar { width: 0%; height: 100%; background: #2ecc71; border-radius: 3px; }
+        .status-text { font-size: 11px; color: #bdc3c7; margin-top: 4px; }
     </style>
 </head>
 <body>
 
-    <div class="control-panel">
-        <h4>Wgraj plik (XLSX, CSV, KML, KMZ)</h4>
-        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.kml,.kmz">
-        
-        <div id="progressContainer" class="progress-container">
-            <div id="progressBar" class="progress-bar"></div>
+    <!-- LEWY PANEL BOCZNY -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <h3>Wczytaj Plik Adresowy</h3>
+            <div class="file-upload-box">
+                <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.kml,.kmz">
+                <div id="progressContainer" class="progress-container">
+                    <div id="progressBar" class="progress-bar"></div>
+                </div>
+                <div id="status" class="status-text"></div>
+            </div>
         </div>
-        <div id="status" class="status"></div>
+
+        <div style="padding: 10px 15px 0 15px; font-size: 13px; font-weight: bold; color: #6c757d;">
+            NARYSOWANE REJONY:
+        </div>
+
+        <div id="regionsList">
+            <div id="emptyInfo" style="text-align: center; color: #adb5bd; margin-top: 30px; font-size: 13px;">
+                Użyj narzędzi po lewej stronie mapy, aby narysować obszar.
+            </div>
+        </div>
     </div>
 
+    <!-- MAPA -->
     <div id="map"></div>
 
-    <!-- Biblioteki JS -->
+    <!-- BIBLIOTEKI JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -76,140 +177,242 @@
         // 1. Inicjalizacja mapy
         const map = L.map('map').setView([52.237, 21.017], 6);
 
-        // 2. Kafelki OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        // 3. Konfiguracja warstwy do rysowania rejonów (Leaflet Draw)
+        // 2. Grupa dla rysowanych obszarów
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
 
+        // 3. Leaflet Draw (Narzędzia rysowania i edycji)
         const drawControl = new L.Control.Draw({
             edit: { featureGroup: drawnItems },
             draw: {
-                polygon: true,
-                polyline: true,
+                polygon: { allowIntersection: false, showArea: true },
                 rectangle: true,
-                circle: true,
-                marker: true,
+                polyline: false,
+                circle: false,
+                marker: false,
                 circlemarker: false
             }
         });
         map.addControl(drawControl);
 
-        map.on(L.Draw.Event.CREATED, function (event) {
-            const layer = event.layer;
-            drawnItems.addLayer(layer);
-        });
-
-        // 4. Grupa klastrów dla punktów (odpowiada za płynność przy 20k obiektów)
-        const markersClusterGroup = L.markerClusterGroup({
-            chunkedLoading: true // Ładowanie porcjami bez ścinania interfejsu
-        });
+        // 4. Klastrowanie punktów (Wydajność przy 20k punktach)
+        const markersClusterGroup = L.markerClusterGroup({ chunkedLoading: true });
         map.addLayer(markersClusterGroup);
 
-        let currentKmlLayer = null;
+        let regionCounter = 1;
 
-        // 5. Obsługa wgrywania plików z dysku
+        // 5. OBSŁUGA TWORZENIA NOWEGO REJONU
+        map.on(L.Draw.Event.CREATED, function (e) {
+            const layer = e.layer;
+            drawnItems.addLayer(layer);
+
+            if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+                const defaultColor = "#3388ff";
+                layer.setStyle({ color: defaultColor, fillColor: defaultColor, fillOpacity: 0.35 });
+
+                const regionId = 'region-' + Date.now();
+                const regionName = `Rejon ${regionCounter++}`;
+                
+                // Liczenie punktów
+                const count = countPointsInLayer(layer);
+
+                // Tworzenie karty w panelu bocznym
+                createRegionCard(regionId, regionName, count, layer, defaultColor);
+            }
+        });
+
+        // 6. OBSŁUGA PRZELICZANIA NA ŻYWO PODCZAS EDYCJI NAROŻNIKÓW
+        map.on(L.Draw.Event.EDITMOVE, function (e) {
+            const layer = e.layer;
+            updateRegionCount(layer);
+        });
+
+        map.on(L.Draw.Event.EDITED, function (e) {
+            e.layers.eachLayer(function (layer) {
+                updateRegionCount(layer);
+            });
+        });
+
+        // Usuwanie obiektów z narzędzia Leaflet Draw
+        map.on(L.Draw.DELETED, function (e) {
+            e.layers.eachLayer(function (layer) {
+                if (layer.regionId) {
+                    const card = document.getElementById(layer.regionId);
+                    if (card) card.remove();
+                }
+            });
+            checkEmptyInfo();
+        });
+
+        // Funkcja pomocnicza odświeżająca wynik
+        function updateRegionCount(layer) {
+            if (layer.regionId) {
+                const count = countPointsInLayer(layer);
+                const card = document.getElementById(layer.regionId);
+                if (card) {
+                    card.querySelector('.point-count').innerText = count;
+                }
+            }
+        }
+
+        // 7. TWORZENIE KARTY W PANELU BOCZNYM
+        function createRegionCard(id, defaultName, count, layer, color) {
+            document.getElementById('emptyInfo').style.display = 'none';
+            layer.regionId = id;
+
+            const card = document.createElement('div');
+            card.className = 'region-card';
+            card.id = id;
+            card.style.borderLeftColor = color;
+
+            card.innerHTML = `
+                <div class="region-card-header">
+                    <input type="text" class="region-title-input" value="${defaultName}">
+                </div>
+                <div class="region-stats">
+                    📍 Liczba punktów: <b class="point-count">${count}</b>
+                </div>
+                <div class="region-controls">
+                    <div class="color-picker-wrapper">
+                        <input type="color" class="color-picker" value="${color}">
+                        <span>Kolor</span>
+                    </div>
+                    <button class="btn btn-zoom">🔍 Wyśrodkuj</button>
+                    <button class="btn btn-delete">🗑️</button>
+                </div>
+            `;
+
+            // Zmiana nazwy
+            const nameInput = card.querySelector('.region-title-input');
+            nameInput.addEventListener('change', (evt) => {
+                layer.bindPopup(`<b>${evt.target.value}</b><br>Punkty: ${countPointsInLayer(layer)}`);
+            });
+
+            // Zmiana koloru z zachowaniem przezroczystości 0.35
+            const colorPicker = card.querySelector('.color-picker');
+            colorPicker.addEventListener('input', (evt) => {
+                const newColor = evt.target.value;
+                layer.setStyle({
+                    color: newColor,
+                    fillColor: newColor,
+                    fillOpacity: 0.35
+                });
+                card.style.borderLeftColor = newColor;
+            });
+
+            // Przybliżanie do rejonu
+            card.querySelector('.btn-zoom').addEventListener('click', () => {
+                map.fitBounds(layer.getBounds(), { padding: [30, 30] });
+            });
+
+            // Usuwanie rejonu
+            card.querySelector('.btn-delete').addEventListener('click', () => {
+                drawnItems.removeLayer(layer);
+                card.remove();
+                checkEmptyInfo();
+            });
+
+            document.getElementById('regionsList').appendChild(card);
+        }
+
+        // 8. ZLICZANIE PUNKTÓW W ŚRODKU REJONU (Turf.js)
+        function countPointsInLayer(layer) {
+            const drawnGeoJSON = layer.toGeoJSON();
+            let count = 0;
+
+            markersClusterGroup.eachLayer(function(marker) {
+                const latLng = marker.getLatLng();
+                const turfPoint = turf.point([latLng.lng, latLng.lat]);
+                if (turf.booleanPointInPolygon(turfPoint, drawnGeoJSON)) {
+                    count++;
+                }
+            });
+            return count;
+        }
+
+        function recalculateAllRegions() {
+            document.querySelectorAll('.region-card').forEach(card => {
+                const layer = drawnItems.getLayers().find(l => l.regionId === card.id);
+                if (layer) {
+                    const newCount = countPointsInLayer(layer);
+                    card.querySelector('.point-count').innerText = newCount;
+                }
+            });
+        }
+
+        function checkEmptyInfo() {
+            if (document.querySelectorAll('.region-card').length === 0) {
+                document.getElementById('emptyInfo').style.display = 'block';
+            }
+        }
+
+        // 9. OBSŁUGA PLIKÓW (XLSX, CSV, KML, KMZ)
         document.getElementById('fileInput').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
 
             const fileName = file.name.toLowerCase();
-            updateProgress(10, "Odczytywanie pliku z dysku...");
+            updateProgress(10, "Wgrywanie pliku...");
 
-            // Czyszczenie poprzednich punktów z mapy
             markersClusterGroup.clearLayers();
-            if (currentKmlLayer) map.removeLayer(currentKmlLayer);
 
-            // A) Pliki Excel (.xlsx / .xls)
             if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
                 const reader = new FileReader();
                 reader.readAsArrayBuffer(file);
                 reader.onload = function(evt) {
-                    updateProgress(40, "Parsowanie arkusza Excel...");
+                    updateProgress(40, "Parsowanie Excela...");
                     setTimeout(() => {
-                        try {
-                            const data = new Uint8Array(evt.target.result);
-                            const workbook = XLSX.read(data, { type: 'array' });
-                            const firstSheetName = workbook.SheetNames[0];
-                            const worksheet = workbook.Sheets[firstSheetName];
-                            const jsonData = XLSX.utils.sheet_to_json(worksheet);
-                            
-                            updateProgress(70, "Generowanie 20k punktów na mapie...");
-                            renderTableData(jsonData);
-                        } catch (err) {
-                            updateProgress(0, "Błąd pliku Excel: " + err.message);
-                        }
+                        const data = new Uint8Array(evt.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                        renderTableData(jsonData);
                     }, 50);
                 };
-            }
-            // B) Pliki CSV
-            else if (fileName.endsWith('.csv')) {
+            } else if (fileName.endsWith('.csv')) {
                 Papa.parse(file, {
                     header: true,
                     skipEmptyLines: true,
-                    complete: function(results) {
-                        updateProgress(70, "Generowanie punktów z CSV...");
-                        renderTableData(results.data);
-                    }
+                    complete: function(results) { renderTableData(results.data); }
                 });
-            }
-            // C) Pliki KML / KMZ
-            else if (fileName.endsWith('.kmz') || fileName.endsWith('.kml')) {
+            } else if (fileName.endsWith('.kmz') || fileName.endsWith('.kml')) {
                 handleKmlKmz(file);
             }
         });
 
-        // Funkcja przetwarzająca tabele (XLSX / CSV) na punkty
         function renderTableData(rows) {
             const newMarkers = [];
 
             rows.forEach(row => {
-                // Automatyczne odnajdywanie nagłówków kolumn w arkuszu
                 const latKey = Object.keys(row).find(k => ['lat', 'latitude', 'szerokosc', 'szerokość'].includes(k.trim().toLowerCase()));
                 const lonKey = Object.keys(row).find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość'].includes(k.trim().toLowerCase()));
-                const labelKey = Object.keys(row).find(k => ['adres', 'address', 'nazwa', 'name', 'etykieta'].includes(k.trim().toLowerCase()));
+                const labelKey = Object.keys(row).find(k => ['adres', 'address', 'nazwa', 'name'].includes(k.trim().toLowerCase()));
 
                 const lat = parseFloat(row[latKey]);
                 const lon = parseFloat(row[lonKey]);
-                const label = labelKey ? row[labelKey] : 'Punkt bez nazwy';
+                const label = labelKey ? row[labelKey] : 'Punkt';
 
                 if (!isNaN(lat) && !isNaN(lon)) {
-                    const marker = L.marker([lat, lon]);
-
-                    // Dymek z infomacją i opcją usunięcia
-                    const popupContent = document.createElement('div');
-                    popupContent.innerHTML = `
-                        <b>Adres / Nazwa:</b><br>${label}<br><br>
-                        <button class="delete-btn" style="background: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; width: 100%;">
-                            ❌ Usuń ten punkt
-                        </button>
-                    `;
-
-                    popupContent.querySelector('.delete-btn').addEventListener('click', function() {
-                        markersClusterGroup.removeLayer(marker);
-                    });
-
-                    marker.bindPopup(popupContent);
+                    const marker = L.marker([lat, lon]).bindPopup(`<b>${label}</b>`);
                     newMarkers.push(marker);
                 }
             });
 
-            // Dodanie wszystkich punktów naraz do klastra
             markersClusterGroup.addLayers(newMarkers);
 
             if (newMarkers.length > 0) {
                 map.fitBounds(markersClusterGroup.getBounds());
-                updateProgress(100, `Gotowe! Wczytano ${newMarkers.length} punktów.`);
+                updateProgress(100, `Wczytano ${newMarkers.length} punktów.`);
+                recalculateAllRegions();
             } else {
-                updateProgress(0, "Nie odnaleziono kolumn ze współrzędnymi LAT i LONG w pliku.");
+                updateProgress(0, "Błąd: Brak kolumn LAT i LONG.");
             }
         }
 
-        // Obsługa plików KML/KMZ (zachowana wsteczna kompatybilność)
         function handleKmlKmz(file) {
             const isKmz = file.name.toLowerCase().endsWith('.kmz');
             const reader = new FileReader();
@@ -217,69 +420,40 @@
             if (isKmz) {
                 reader.readAsArrayBuffer(file);
                 reader.onload = function(evt) {
-                    updateProgress(50, "Rozpakowywanie KMZ...");
                     JSZip.loadAsync(evt.target.result).then(zip => {
                         const kmlFile = Object.keys(zip.files).find(name => name.toLowerCase().endsWith('.kml'));
                         if (kmlFile) return zip.files[kmlFile].async("string");
-                        throw new Error("Brak pliku KML wewnątrz KMZ");
-                    }).then(kmlText => {
-                        parseAndRenderKml(kmlText);
-                    }).catch(err => {
-                        updateProgress(0, "Błąd KMZ: " + err.message);
-                    });
+                    }).then(parseAndRenderKml);
                 };
             } else {
                 reader.readAsText(file);
-                reader.onload = function(evt) {
-                    parseAndRenderKml(evt.target.result);
-                };
+                reader.onload = function(evt) { parseAndRenderKml(evt.target.result); };
             }
         }
 
         function parseAndRenderKml(xmlString) {
-            try {
-                const parser = new DOMParser();
-                const kmlDoc = parser.parseFromString(xmlString, 'text/xml');
-                const track = new L.KML(kmlDoc);
+            const parser = new DOMParser();
+            const kmlDoc = parser.parseFromString(xmlString, 'text/xml');
+            const track = new L.KML(kmlDoc);
+            
+            const newMarkers = [];
+            track.eachLayer(l => {
+                if (l instanceof L.Marker) newMarkers.push(l);
+            });
 
-                currentKmlLayer = track;
-                map.addLayer(currentKmlLayer);
-
-                currentKmlLayer.eachLayer(function(layer) {
-                    if (layer instanceof L.Marker) {
-                        let name = layer.feature ? (layer.feature.properties.name || 'Punkt') : 'Punkt';
-                        let popupContent = document.createElement('div');
-                        popupContent.innerHTML = `
-                            <b>${name}</b><br><br>
-                            <button class="delete-btn" style="background: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; width: 100%;">
-                                ❌ Usuń ten punkt
-                            </button>
-                        `;
-
-                        popupContent.querySelector('.delete-btn').addEventListener('click', function() {
-                            map.removeLayer(layer);
-                        });
-
-                        layer.bindPopup(popupContent);
-                    }
-                });
-
-                const bounds = track.getBounds();
-                if (bounds.isValid()) map.fitBounds(bounds);
-                updateProgress(100, "Gotowe! KML wczytany.");
-            } catch (e) {
-                updateProgress(0, "Błąd parsowania pliku KML.");
-            }
+            markersClusterGroup.addLayers(newMarkers);
+            if (newMarkers.length > 0) map.fitBounds(markersClusterGroup.getBounds());
+            updateProgress(100, "Wczytano plik KML/KMZ.");
+            recalculateAllRegions();
         }
 
-        function updateProgress(percent, statusText) {
-            const progressContainer = document.getElementById('progressContainer');
-            const progressBar = document.getElementById('progressBar');
+        function updateProgress(percent, text) {
+            const container = document.getElementById('progressContainer');
+            const bar = document.getElementById('progressBar');
             const status = document.getElementById('status');
-            
-            progressContainer.style.display = 'block';
-            progressBar.style.width = percent + '%';
-            status.innerText = percent + '% - ' + statusText;
+            container.style.display = 'block';
+            bar.style.width = percent + '%';
+            status.innerText = text;
         }
     </script>
 </body>
