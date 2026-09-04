@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Konstruktor rejonów</title>
+    <title>Mapa Rejonów - Edycja KML, KMZ, XLSX</title>
     
     <!-- Leaflet & Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -18,16 +18,18 @@
         * { box-sizing: border-box; }
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; overflow: hidden; }
         
-        #sidebar {
-            width: 320px;
+        .sidebar {
+            width: 300px;
             height: 100%;
             background: #f8f9fa;
-            border-right: 1px solid #dee2e6;
             display: flex;
             flex-direction: column;
             z-index: 1000;
-            box-shadow: 2px 0 6px rgba(0,0,0,0.08);
+            box-shadow: 0 0 6px rgba(0,0,0,0.1);
         }
+
+        #sidebar-left { border-right: 1px solid #dee2e6; }
+        #sidebar-right { border-left: 1px solid #dee2e6; }
 
         .sidebar-header { padding: 10px 12px; background: #2c3e50; color: white; }
         .sidebar-header h3 { margin: 0 0 8px 0; font-size: 14px; }
@@ -153,7 +155,8 @@
 </head>
 <body>
 
-    <div id="sidebar">
+    <!-- LEWY PANEL: Pliki, Akcje, Ustawienia -->
+    <div id="sidebar-left" class="sidebar">
         <div class="sidebar-header">
             <h3>Wczytaj Pliki KML / KMZ / XLSX</h3>
             <div class="file-upload-box">
@@ -191,9 +194,15 @@
             <button id="exportXlsxBtn" class="btn-action btn-export-xlsx">📊 Eksportuj podsumowanie (XLSX)</button>
             <button id="exportKmlBtn" class="btn-action btn-export-kml">📥 Eksportuj rejony do KML</button>
         </div>
+    </div>
 
-        <div style="padding: 8px 12px 0 12px; font-size: 11px; font-weight: bold; color: #6c757d; display: flex; align-items: center;">
-            <span>REJONY:</span>
+    <!-- ŚRODEK: Mapa -->
+    <div id="map"></div>
+
+    <!-- PRAWY PANEL: Lista Rejonów -->
+    <div id="sidebar-right" class="sidebar">
+        <div class="sidebar-header" style="display: flex; align-items: center; justify-content: space-between;">
+            <h3 style="margin: 0;">LISTA REJONÓW</h3>
             <button id="resetStorageBtn" class="btn-reset-storage" title="Usuwa wszystkie rejony i punkty">🧹 Wyczyść wszystko</button>
         </div>
 
@@ -203,8 +212,6 @@
             </div>
         </div>
     </div>
-
-    <div id="map"></div>
 
     <!-- Biblioteki JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -293,10 +300,8 @@
 
             const previousState = undoStack.pop();
 
-            // Przywróć stan plików
             processedFilesSet = new Set(previousState.processedFiles);
 
-            // Przywróć poligony
             drawnItems.clearLayers();
             selectRegion(null);
 
@@ -314,7 +319,6 @@
                 attachLayerEvents(polygonLayer);
             });
 
-            // Przywróć punkty
             markersClusterGroup.clearLayers();
             allMarkers = [];
 
@@ -336,7 +340,6 @@
 
         undoBtn.addEventListener('click', undoLastAction);
 
-        // Skrót klawiszowy Ctrl+Z / Cmd+Z
         window.addEventListener('keydown', (e) => {
             const activeEl = document.activeElement;
             const isEditingText = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
@@ -533,7 +536,6 @@
             if (layer.editing) {
                 layer.editing.enable();
 
-                // Rejestracja zdarzeń przeciągania wierzchołków
                 if (!layer._hasUndoEvents) {
                     layer.on('editstart', () => recordState());
                     layer.on('dragstart', () => recordState());
@@ -561,7 +563,6 @@
             saveEditBtn.style.display = 'block';
 
             if (selectedLayer) {
-                // Jeśli edycja uruchomiona z panelu głównego przy zaznaczonym rejonie -> edytuj tylko obszary tego rejonu
                 const targetName = selectedLayer.regionName;
                 drawnItems.eachLayer(layer => {
                     if (layer.regionName === targetName) {
@@ -569,7 +570,6 @@
                     }
                 });
             } else {
-                // Jeśli żaden rejon nie jest zaznaczony -> edytuj wszystkie na mapie
                 drawnItems.eachLayer(layer => {
                     enableLayerEditing(layer);
                 });
@@ -688,7 +688,6 @@
                 toggleEditBtn.style.display = 'none';
                 saveEditBtn.style.display = 'block';
 
-                // Włącz edycję TYLKO dla tego pojedynczego obszaru
                 enableLayerEditing(layer);
             });
 
