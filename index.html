@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa Rejonów - Edycja KML, KMZ, XLSX</title>
+    <title>Konstruktor Rejonów</title>
     
     <!-- Leaflet & Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -149,6 +149,19 @@
         }
         .btn-delete-marker:hover { background: #c0392b; }
 
+        .custom-point-pin {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid #2c3e50;
+            background-color: #7f8c8d;
+            box-shadow: 0 0 3px rgba(0,0,0,0.5);
+            cursor: grab;
+        }
+        .custom-point-pin:active {
+            cursor: grabbing;
+        }
+
         #map { flex: 1; height: 100%; }
         .status-text { font-size: 10px; color: #bdc3c7; margin-top: 4px; }
     </style>
@@ -216,7 +229,7 @@
     <!-- Biblioteki JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/Leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -454,18 +467,32 @@
         monthSelect.addEventListener('change', updateWorkdaysDisplay);
         yearSelect.addEventListener('change', updateWorkdaysDisplay);
 
+        function createPointIcon(color = "#7f8c8d") {
+            return L.divIcon({
+                className: 'custom-point-wrapper',
+                html: `<div class="custom-point-pin" style="background-color: ${color};"></div>`,
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            });
+        }
+
         function createInteractiveMarker(lat, lng, title) {
-            const marker = L.circleMarker([lat, lng], {
-                radius: 4,
-                fillColor: "#7f8c8d",
-                color: "#2c3e50",
-                weight: 1,
-                opacity: 0.9,
-                fillOpacity: 0.8
+            const marker = L.marker([lat, lng], {
+                draggable: true,
+                icon: createPointIcon("#7f8c8d")
             });
 
             marker.markerTitle = title;
             
+            marker.on('dragstart', () => {
+                recordState();
+            });
+
+            marker.on('dragend', () => {
+                recalculateAllStats();
+                saveMarkersToLocalStorage();
+            });
+
             const popupContainer = document.createElement('div');
             popupContainer.innerHTML = `<b>${escapeXml(title)}</b><br>`;
 
@@ -647,12 +674,35 @@
             drawnItems.addLayer(layer);
 
             if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
-                const defaultColor = "#3388ff";
-                layer.setStyle({ color: defaultColor, fillColor: defaultColor, fillOpacity: 0.35, weight: 3 });
+                let assignedColor = "#3388ff";
+                let assignedName = `Rejon ${regionCounter++}`;
 
-                const regionName = `Rejon ${regionCounter++}`;
-                layer.regionColor = defaultColor;
-                layer.regionName = regionName;
+                // Sprawdzanie nachodzenia/przecięcia z istniejącymi obszarami
+                const newGeoJSON = layer.toGeoJSON();
+                let matchedExistingLayer = null;
+
+                drawnItems.eachLayer(existingLayer => {
+                    if (existingLayer !== layer && (existingLayer instanceof L.Polygon || existingLayer instanceof L.Rectangle)) {
+                        const existingGeoJSON = existingLayer.toGeoJSON();
+                        if (turf.booleanIntersect(newGeoJSON, existingGeoJSON)) {
+                            matchedExistingLayer = existingLayer;
+                        }
+                    }
+                });
+
+                if (matchedExistingLayer) {
+                    const existingName = matchedExistingLayer.regionName;
+                    const confirmJoin = confirm(`Narysowany obszar nachodzi na rejon "${existingName}". Czy chcesz włączyć ten obszar do rejonu "${existingName}"?`);
+                    
+                    if (confirmJoin) {
+                        assignedName = existingName;
+                        assignedColor = matchedExistingLayer.regionColor || "#3388ff";
+                    }
+                }
+
+                layer.setStyle({ color: assignedColor, fillColor: assignedColor, fillOpacity: 0.35, weight: 3 });
+                layer.regionColor = assignedColor;
+                layer.regionName = assignedName;
                 
                 attachLayerEvents(layer);
                 rebuildRegionsListUI();
@@ -1106,9 +1156,9 @@
                 marker.isAssigned = isInsideAny;
 
                 if (isInsideAny && matchedColor) {
-                    marker.setStyle({ fillColor: matchedColor, color: '#111111' });
+                    marker.setIcon(createPointIcon(matchedColor));
                 } else {
-                    marker.setStyle({ fillColor: '#7f8c8d', color: '#2c3e50' });
+                    marker.setIcon(createPointIcon("#7f8c8d"));
                     unassignedCount++;
                 }
             });
@@ -1228,9 +1278,23 @@
             titleInput.addEventListener('focus', () => recordState());
             titleInput.addEventListener('change', () => {
                 const newName = titleInput.value.trim() || 'Bez nazwy';
+                
+                // Szukanie czy taka nazwa już istnieje w innym rejonie, aby przejąć jego kolor
+                let targetColor = null;
+                drawnItems.eachLayer(l => {
+                    if (l.regionName === newName && !groupLayers.includes(l)) {
+                        targetColor = l.regionColor;
+                    }
+                });
+
                 groupLayers.forEach(l => {
                     l.regionName = newName;
+                    if (targetColor) {
+                        l.regionColor = targetColor;
+                        l.setStyle({ color: targetColor, fillColor: targetColor });
+                    }
                 });
+
                 rebuildRegionsListUI();
                 recalculateAllStats();
                 saveToLocalStorage();
