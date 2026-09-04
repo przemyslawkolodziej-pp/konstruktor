@@ -119,13 +119,21 @@
 
         .unassigned-bar {
             background: #fff3cd; color: #856404; padding: 6px 10px; border-bottom: 1px solid #ffeeba;
-            font-size: 11px; font-weight: bold; display: flex; justify-content: space-between; align-items: center;
+            font-size: 11px; font-weight: bold; display: flex; flex-direction: column; gap: 4px;
         }
-        .btn-filter-unassigned {
+        .unassigned-bar-top {
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .unassigned-btns {
+            display: flex; gap: 4px;
+        }
+        .btn-filter-unassigned, .btn-manage-unassigned {
             background: #856404; color: white; border: none; border-radius: 3px;
-            padding: 2px 6px; font-size: 10px; cursor: pointer;
+            padding: 3px 6px; font-size: 10px; cursor: pointer; flex: 1; text-align: center;
         }
-        .btn-filter-unassigned:hover { background: #533f03; }
+        .btn-filter-unassigned:hover, .btn-manage-unassigned:hover { background: #533f03; }
+        .btn-manage-unassigned { background: #d35400; }
+        .btn-manage-unassigned:hover { background: #a04000; }
 
         .workdays-bar {
             background: #e8f4f8; padding: 6px 10px; border-bottom: 1px solid #d0e1e9;
@@ -205,6 +213,34 @@
 
         #map { flex: 1; height: 100%; }
         .status-text { font-size: 10px; color: #bdc3c7; margin-top: 4px; }
+
+        /* Style dla okna modalnego masowego przypisywania */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.65); z-index: 99999; display: flex;
+            justify-content: center; align-items: center;
+        }
+        .modal-card {
+            background: white; border-radius: 8px; width: 620px; max-height: 85vh;
+            display: flex; flex-direction: column; padding: 18px; box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #dee2e6; padding-bottom: 10px; }
+        .modal-header h3 { margin: 0; font-size: 16px; color: #2c3e50; }
+        .btn-close-modal { background: none; border: none; font-size: 18px; cursor: pointer; color: #888; }
+        .btn-close-modal:hover { color: #000; }
+        .modal-body { overflow-y: auto; flex: 1; margin-top: 12px; padding-right: 4px; }
+        
+        .group-item {
+            background: #f8f9fa; border: 1px solid #e9ecef; padding: 10px 12px;
+            margin-bottom: 8px; border-radius: 6px; display: flex; justify-content: space-between;
+            align-items: center; gap: 10px;
+        }
+        .group-info { font-size: 12px; color: #2c3e50; word-break: break-word; flex: 1; }
+        .group-info b { font-size: 13px; display: block; margin-bottom: 2px; }
+        .group-controls { display: flex; gap: 6px; align-items: center; }
+        .group-controls select { padding: 4px 6px; font-size: 11px; border: 1px solid #ced4da; border-radius: 4px; max-width: 160px; }
+        .btn-assign-group { background: #27ae60; color: white; border: none; padding: 5px 10px; font-size: 11px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .btn-assign-group:hover { background: #219653; }
     </style>
 </head>
 <body>
@@ -240,8 +276,13 @@
         </div>
 
         <div class="unassigned-bar">
-            <span>Punktów nieprzypisanych: <b id="unassignedCount">0</b></span>
-            <button id="toggleUnassignedBtn" class="btn-filter-unassigned">Pokaż tylko nieprzypisane</button>
+            <div class="unassigned-bar-top">
+                <span>Punktów nieprzypisanych: <b id="unassignedCount">0</b></span>
+            </div>
+            <div class="unassigned-btns">
+                <button id="toggleUnassignedBtn" class="btn-filter-unassigned">Pokaż nieprzypisane</button>
+                <button id="openUnassignedModalBtn" class="btn-manage-unassigned">📋 Zarządzaj błędnymi</button>
+            </div>
         </div>
 
         <div class="workdays-bar">
@@ -277,6 +318,19 @@
         <div id="regionsList">
             <div id="emptyInfo" style="text-align: center; color: #adb5bd; margin-top: 20px; font-size: 12px;">
                 Brak narysowanych rejonów. Wczytaj pliki lub narysuj obszar ręcznie.
+            </div>
+        </div>
+    </div>
+
+    <!-- OKNO MODALNE DO MASOWEGO PRZYPISYWANIA BŁĘDNYCH PUNKTÓW -->
+    <div id="unassignedModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>📋 Masowe przypisywanie błędnie geokodowanych punktów</h3>
+                <button class="btn-close-modal" id="closeUnassignedModalBtn">✖</button>
+            </div>
+            <div id="unassignedGroupsList" class="modal-body">
+                <!-- Grupy punktów generowane dynamicznie -->
             </div>
         </div>
     </div>
@@ -1328,10 +1382,10 @@
         toggleUnassignedBtn.addEventListener('click', () => {
             showOnlyUnassigned = !showOnlyUnassigned;
             if (showOnlyUnassigned) {
-                toggleUnassignedBtn.innerText = 'Pokaż wszystkie punkty';
+                toggleUnassignedBtn.innerText = 'Pokaż wszystkie';
                 filterUnassignedMarkers();
             } else {
-                toggleUnassignedBtn.innerText = 'Pokaż tylko nieprzypisane';
+                toggleUnassignedBtn.innerText = 'Pokaż nieprzypisane';
                 markersClusterGroup.clearLayers();
                 markersClusterGroup.addLayers(allMarkers);
             }
@@ -1341,6 +1395,109 @@
             const unassigned = allMarkers.filter(m => !m.isAssigned);
             markersClusterGroup.clearLayers();
             markersClusterGroup.addLayers(unassigned);
+        }
+
+        // --- OBSŁUGA MODALA I MASOWEGO PRZYPISYWANIA BŁĘDNYCH PUNKTÓW ---
+        const openUnassignedModalBtn = document.getElementById('openUnassignedModalBtn');
+        const closeUnassignedModalBtn = document.getElementById('closeUnassignedModalBtn');
+        const unassignedModal = document.getElementById('unassignedModal');
+
+        openUnassignedModalBtn.addEventListener('click', openUnassignedModal);
+        closeUnassignedModalBtn.addEventListener('click', closeUnassignedModal);
+
+        function openUnassignedModal() {
+            const unassigned = allMarkers.filter(m => !m.isAssigned);
+            if (unassigned.length === 0) {
+                alert('Brak nieprzypisanych punktów!');
+                return;
+            }
+
+            const groups = {};
+            unassigned.forEach(m => {
+                const title = m.markerTitle || 'Brak nazwy/adresu';
+                if (!groups[title]) groups[title] = [];
+                groups[title].push(m);
+            });
+
+            const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            const regionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy')));
+
+            const container = document.getElementById('unassignedGroupsList');
+            container.innerHTML = '';
+
+            if (regionNames.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">Narysuj najpierw przynajmniej jeden rejon, aby moc przypisać punkty.</div>';
+                unassignedModal.style.display = 'flex';
+                return;
+            }
+
+            Object.keys(groups).forEach((groupTitle, idx) => {
+                const markersInGroup = groups[groupTitle];
+                const div = document.createElement('div');
+                div.className = 'group-item';
+                
+                const optionsHtml = regionNames.map(r => `<option value="${escapeXml(r)}">${escapeXml(r)}</option>`).join('');
+
+                div.innerHTML = `
+                    <div class="group-info">
+                        <b>${escapeXml(groupTitle)}</b>
+                        <span>Liczba punktów w grupie: ${markersInGroup.length}</span>
+                    </div>
+                    <div class="group-controls">
+                        <select id="select-group-${idx}">
+                            ${optionsHtml}
+                        </select>
+                        <button class="btn-assign-group" data-group-title="${escapeXml(groupTitle)}" data-select-id="select-group-${idx}">Przypisz</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+
+            container.querySelectorAll('.btn-assign-group').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const title = e.target.getAttribute('data-group-title');
+                    const selectId = e.target.getAttribute('data-select-id');
+                    const selectEl = document.getElementById(selectId);
+                    if (selectEl) {
+                        assignGroupToRegion(title, selectEl.value);
+                    }
+                });
+            });
+
+            unassignedModal.style.display = 'flex';
+        }
+
+        function assignGroupToRegion(groupTitle, targetRegionName) {
+            const targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === targetRegionName);
+            
+            if (!targetLayer) {
+                alert('Wybrany rejon nie istnieje!');
+                return;
+            }
+
+            recordState();
+
+            const center = targetLayer.getBounds().getCenter();
+
+            const unassignedInGroup = allMarkers.filter(m => !m.isAssigned && (m.markerTitle || 'Brak nazwy/adresu') === groupTitle);
+            
+            unassignedInGroup.forEach(m => {
+                m.setLatLng(center);
+            });
+
+            recalculateAllStats();
+            saveToLocalStorage();
+
+            const remainingUnassigned = allMarkers.filter(m => !m.isAssigned);
+            if (remainingUnassigned.length > 0) {
+                openUnassignedModal();
+            } else {
+                closeUnassignedModal();
+            }
+        }
+
+        function closeUnassignedModal() {
+            unassignedModal.style.display = 'none';
         }
 
         function rebuildRegionsListUI() {
