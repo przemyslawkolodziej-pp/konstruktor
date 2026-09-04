@@ -5,198 +5,381 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Konstruktor Rejonów</title>
     
-    <!-- Leaflet CSS -->
+    <!-- Leaflet & Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <!-- Marker Cluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <!-- Leaflet Geocoder CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            height: 100vh;
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        
+        /* Styl dla nakładki logowania */
+        #loginOverlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(44, 62, 80, 0.95);
+            z-index: 99999;
             display: flex;
-            overflow: hidden;
-            background-color: #f8f9fa;
+            justify-content: center;
+            align-items: center;
+            color: white;
         }
 
-        #sidebar {
-            width: 380px;
-            height: 100vh;
+        .login-card {
             background: #ffffff;
-            border-right: 1px solid #e0e0e0;
+            color: #333333;
+            padding: 24px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            width: 320px;
+            text-align: center;
+        }
+
+        .login-card h3 { margin-top: 0; color: #2c3e50; font-size: 18px; }
+        .login-card input[type="password"] {
+            width: 100%;
+            padding: 8px 10px;
+            margin: 12px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 8px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-login:hover { background: #219653; }
+        .login-error { color: #e74c3c; font-size: 11px; margin-top: 8px; display: none; }
+
+        .sidebar {
+            width: 300px;
+            height: 100%;
+            background: #f8f9fa;
             display: flex;
             flex-direction: column;
             z-index: 1000;
-            box-shadow: 2px 0 8px rgba(0,0,0,0.05);
+            box-shadow: 0 0 6px rgba(0,0,0,0.1);
         }
 
-        .sidebar-header {
-            padding: 20px;
-            border-bottom: 1px solid #eee;
-            background: #2c3e50;
-            color: white;
+        #sidebar-left { border-right: 1px solid #dee2e6; }
+        #sidebar-right { border-left: 1px solid #dee2e6; }
+
+        .sidebar-header { padding: 10px 12px; background: #2c3e50; color: white; }
+        .sidebar-header h3 { margin: 0 0 8px 0; font-size: 14px; }
+
+        .file-upload-box { background: #34495e; padding: 8px; border-radius: 4px; }
+        .file-upload-box input[type="file"] { width: 100%; color: white; font-size: 11px; cursor: pointer; }
+
+        .btn-process {
+            width: 100%; margin-top: 6px; padding: 6px 8px; background: #3498db;
+            color: white; font-weight: bold; border: none; border-radius: 4px;
+            cursor: pointer; font-size: 12px; transition: background 0.2s; display: block;
+        }
+        .btn-process:hover { background: #2980b9; }
+        .btn-process:disabled { background: #7f8c8d; cursor: not-allowed; }
+
+        .queue-toggle-header {
+            margin-top: 6px; background: #243342; color: #ecf0f1; padding: 4px 6px;
+            font-size: 10px; font-weight: bold; border-radius: 3px; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center; user-select: none;
+        }
+        .queue-toggle-header:hover { background: #1a252f; }
+
+        #fileQueueBox {
+            background: #1a252f; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px;
+            padding: 6px; max-height: 120px; overflow-y: auto; display: none;
         }
 
-        .sidebar-header h1 {
-            font-size: 1.25rem;
-            font-weight: 600;
+        .file-queue-item { display: flex; flex-direction: column; font-size: 10px; color: #ecf0f1; padding: 4px 0; border-bottom: 1px solid #3e5871; }
+        .file-queue-item:last-child { border-bottom: none; }
+        .file-header { display: flex; justify-content: space-between; align-items: center; }
+        .file-name { font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; }
+        .file-status { font-size: 9px; padding: 1px 4px; border-radius: 3px; font-weight: bold; }
+        .status-waiting { background: #7f8c8d; color: #fff; }
+        .status-processing { background: #f39c12; color: #fff; }
+        .status-done { background: #2ecc71; color: #fff; }
+        .status-skipped { background: #95a5a6; color: #fff; }
+        .status-error { background: #e74c3c; color: #fff; }
+        .status-empty { background: #e67e22; color: #fff; }
+
+        .file-detail { font-size: 9px; color: #bdc3c7; margin-top: 2px; word-break: break-all; }
+
+        .unassigned-bar {
+            background: #fff3cd; color: #856404; padding: 6px 10px; border-bottom: 1px solid #ffeeba;
+            font-size: 11px; font-weight: bold; display: flex; justify-content: space-between; align-items: center;
+        }
+        .btn-filter-unassigned {
+            background: #856404; color: white; border: none; border-radius: 3px;
+            padding: 2px 6px; font-size: 10px; cursor: pointer;
+        }
+        .btn-filter-unassigned:hover { background: #533f03; }
+
+        .workdays-bar {
+            background: #e8f4f8; padding: 6px 10px; border-bottom: 1px solid #d0e1e9;
+            display: flex; justify-content: space-between; align-items: center; font-size: 11px;
+        }
+        .workdays-bar select {
+            padding: 2px 4px; font-size: 11px; border: 1px solid #ced4da; border-radius: 3px; background: white;
+        }
+        .workdays-info { font-weight: bold; color: #2c3e50; font-size: 10px; }
+
+        .actions-bar {
+            padding: 8px 12px; background: #e9ecef; border-bottom: 1px solid #dee2e6;
+            display: flex; flex-direction: column; gap: 5px;
         }
 
-        .sidebar-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
+        .btn-action {
+            width: 100%; font-weight: bold; padding: 6px 10px; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 12px;
         }
+        .btn-undo { background: #6c757d; color: white; }
+        .btn-undo:hover { background: #5a6268; }
+        .btn-undo:disabled { background: #adb5bd; cursor: not-allowed; }
 
-        .section-title {
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #7f8c8d;
-            margin-bottom: 12px;
-            font-weight: 700;
-        }
+        .btn-export-kml { background: #27ae60; color: white; }
+        .btn-export-kml:hover { background: #219653; }
+
+        .btn-export-xlsx { background: #1d6f42; color: white; }
+        .btn-export-xlsx:hover { background: #144d2e; }
+
+        .btn-edit-toggle { background: #f39c12; color: white; }
+        .btn-edit-toggle:hover { background: #d35400; }
+
+        .btn-save-toggle { background: #2980b9; color: white; display: none; }
+        .btn-save-toggle:hover { background: #1c5980; }
+
+        .btn-logout { background: #7f8c8d; color: white; }
+        .btn-logout:hover { background: #6c757d; }
+
+        .btn-reset-storage { background: #e74c3c; color: white; font-size: 10px; padding: 3px 6px; border: none; border-radius: 3px; cursor: pointer; margin-left: auto; }
+        .btn-reset-storage:hover { background: #c0392b; }
+
+        #regionsList { flex: 1; overflow-y: auto; padding: 6px 8px; }
 
         .region-card {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 12px;
-            transition: all 0.2s ease;
+            background: white; border: 1px solid #e0e0e0; border-radius: 4px;
+            padding: 4px 6px; margin-bottom: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            border-left: 4px solid #3388ff; cursor: pointer; transition: all 0.2s ease;
+        }
+        .region-card:hover { border-color: #aaa; }
+        .region-card.selected { box-shadow: 0 0 0 2px #e67e22; background: #fffdf9; }
+
+        .region-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+        .region-title-input { font-weight: bold; border: 1px solid transparent; padding: 1px 3px; border-radius: 3px; width: 100%; font-size: 11px; }
+        .region-title-input:hover, .region-title-input:focus { border-color: #ccc; background: #fff; }
+        
+        .region-stats { font-size: 10px; color: #555; margin-bottom: 3px; background: #f1f3f5; padding: 2px 4px; border-radius: 3px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2px; }
+        .region-controls { display: flex; gap: 4px; align-items: center; }
+        .color-picker-wrapper { display: flex; align-items: center; gap: 2px; font-size: 10px; color: #666; }
+        .color-picker { border: none; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: none; padding: 0; }
+
+        .btn { padding: 2px 5px; font-size: 10px; border: none; border-radius: 3px; cursor: pointer; }
+        .btn-zoom { background: #e9ecef; color: #495057; }
+        .btn-zoom:hover { background: #dee2e6; }
+        .btn-delete { background: #ffe3e3; color: #dc3545; margin-left: auto; padding: 2px 5px; }
+        .btn-delete:hover { background: #ffc9c9; }
+
+        .btn-delete-marker {
+            background: #e74c3c; color: white; border: none; padding: 4px 8px;
+            font-size: 11px; border-radius: 3px; cursor: pointer; margin-top: 6px; width: 100%;
+        }
+        .btn-delete-marker:hover { background: #c0392b; }
+
+        .custom-pin-marker {
+            background: none !important;
+            border: none !important;
         }
 
-        .region-card.active {
-            border-color: #3498db;
-            background: #f0f7fc;
-        }
-
-        .region-card-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 8px;
-        }
-
-        .region-title-input {
-            font-weight: 600;
-            font-size: 1rem;
-            border: 1px solid transparent;
-            background: transparent;
-            padding: 2px 4px;
-            border-radius: 4px;
-            width: 180px;
-        }
-
-        .region-title-input:hover, .region-title-input:focus {
-            background: #ffffff;
-            border-color: #ced4da;
-        }
-
-        .color-picker {
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-            width: 28px;
-            height: 28px;
-            border: none;
-            cursor: pointer;
-            border-radius: 50%;
-            overflow: hidden;
-        }
-
-        .color-picker::-webkit-color-swatch-wrapper {
-            padding: 0;
-        }
-
-        .color-picker::-webkit-color-swatch {
-            border: 2px solid #ffffff;
-            border-radius: 50%;
-            box-shadow: 0 0 4px rgba(0,0,0,0.2);
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            font-size: 0.85rem;
-            color: #555;
-            margin-top: 8px;
-        }
-
-        .stat-item {
-            background: #ffffff;
-            padding: 6px 8px;
-            border-radius: 4px;
-            border: 1px solid #eee;
-        }
-
-        .stat-label {
-            font-size: 0.75rem;
-            color: #888;
-            display: block;
-        }
-
-        .stat-value {
-            font-weight: 600;
-            color: #2c3e50;
-        }
-
-        .btn-danger {
-            background: #e74c3c;
-            color: white;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.8rem;
-        }
-
-        .btn-danger:hover {
-            background: #c0392b;
-        }
-
-        #map {
-            flex: 1;
-            height: 100vh;
-        }
-
-        .empty-state {
-            text-align: center;
-            color: #95a5a6;
-            font-size: 0.9rem;
-            padding: 30px 10px;
-        }
+        #map { flex: 1; height: 100%; }
+        .status-text { font-size: 10px; color: #bdc3c7; margin-top: 4px; }
     </style>
 </head>
 <body>
 
-    <div id="sidebar">
-        <div class="sidebar-header">
-            <h1>Konstruktor Rejonów</h1>
+    <!-- NAKŁADKA LOGOWANIA -->
+    <div id="loginOverlay">
+        <div class="login-card">
+            <h3>🔒 Dostęp zablokowany</h3>
+            <p style="font-size: 12px; color: #666;">Wprowadź hasło, aby uzyskać dostęp do aplikacji.</p>
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <input type="password" id="passwordInput" placeholder="Wpisz hasło..." required autofocus>
+                <button type="submit" class="btn-login">Zaloguj się</button>
+            </form>
+            <div id="loginError" class="login-error">Nieprawidłowe hasło!</div>
         </div>
-        <div class="sidebar-content">
-            <div class="section-title">Lista Rejonów</div>
-            <div id="regionsList">
-                <div class="empty-state">Brak narysowanych obszarów.<br>Użyj narzędzi po lewej stronie mapy, aby dodać rejon.</div>
+    </div>
+
+    <!-- LEWY PANEL: Pliki, Akcje, Ustawienia -->
+    <div id="sidebar-left" class="sidebar">
+        <div class="sidebar-header">
+            <h3>Wczytaj Pliki KML / KMZ / XLSX</h3>
+            <div class="file-upload-box">
+                <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.kml,.kmz" multiple>
+                <button id="processFilesBtn" class="btn-process">🚀 Załaduj pliki na mapę</button>
+                <div id="status" class="status-text"></div>
+                
+                <div id="queueToggleHeader" class="queue-toggle-header" style="display: none;">
+                    <span>LISTA PLIKÓW</span>
+                    <span id="toggleIcon">▼</span>
+                </div>
+                <div id="fileQueueBox"></div>
+            </div>
+        </div>
+
+        <div class="unassigned-bar">
+            <span>Punktów nieprzypisanych: <b id="unassignedCount">0</b></span>
+            <button id="toggleUnassignedBtn" class="btn-filter-unassigned">Pokaż tylko nieprzypisane</button>
+        </div>
+
+        <div class="workdays-bar">
+            <div>
+                <select id="monthSelect"></select>
+                <select id="yearSelect"></select>
+            </div>
+            <div class="workdays-info">
+                Dni robocze: <span id="workdaysCount">0</span>
+            </div>
+        </div>
+
+        <div class="actions-bar">
+            <button id="undoBtn" class="btn-action btn-undo" disabled>↩️ Cofnij (Ctrl+Z)</button>
+            <button id="toggleEditBtn" class="btn-action btn-edit-toggle">✏️ Edytuj wszystkie rejony</button>
+            <button id="saveEditBtn" class="btn-action btn-save-toggle">💾 Zapisz edycję</button>
+            <button id="exportXlsxBtn" class="btn-action btn-export-xlsx">📊 Eksportuj podsumowanie (XLSX)</button>
+            <button id="exportKmlBtn" class="btn-action btn-export-kml">📥 Eksportuj rejony do KML</button>
+            <button id="logoutBtn" class="btn-action btn-logout">🚪 Wyloguj się</button>
+        </div>
+    </div>
+
+    <!-- ŚRODEK: Mapa -->
+    <div id="map"></div>
+
+    <!-- PRAWY PANEL: Lista Rejonów -->
+    <div id="sidebar-right" class="sidebar">
+        <div class="sidebar-header" style="display: flex; align-items: center; justify-content: space-between;">
+            <h3 style="margin: 0;">LISTA REJONÓW</h3>
+            <button id="resetStorageBtn" class="btn-reset-storage" title="Usuwa wszystkie rejony i punkty">🧹 Wyczyść wszystko</button>
+        </div>
+
+        <div id="regionsList">
+            <div id="emptyInfo" style="text-align: center; color: #adb5bd; margin-top: 20px; font-size: 12px;">
+                Brak narysowanych rejonów. Wczytaj pliki lub narysuj obszar ręcznie.
             </div>
         </div>
     </div>
 
-    <div id="map"></div>
-
-    <!-- Leaflet JS -->
+    <!-- Biblioteki JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
     <script>
-        // --- PALETA I Menedżer Kolorów ---
+        // LOGIKA LOGOWANIA Z HASHINGIEM SHA-256
+        const PASSWORD_HASH = "919241645f838f77f1f7f8421335c061358791385afec6918751b14debd2e24f";
+
+        async function sha256(str) {
+            const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+            return Array.from(new Uint8Array(buf))
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
+        }
+
+        function checkAuthStatus() {
+            const isAuth = localStorage.getItem('app_authenticated');
+            const overlay = document.getElementById('loginOverlay');
+
+            if (isAuth === 'true') {
+                overlay.style.display = 'none';
+            } else {
+                overlay.style.display = 'flex';
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const inputPass = document.getElementById('passwordInput').value;
+            const errorEl = document.getElementById('loginError');
+
+            const inputHash = await sha256(inputPass);
+
+            if (inputHash === PASSWORD_HASH) {
+                localStorage.setItem('app_authenticated', 'true');
+                document.getElementById('loginOverlay').style.display = 'none';
+                document.getElementById('passwordInput').value = '';
+                errorEl.style.display = 'none';
+            } else {
+                errorEl.style.display = 'block';
+            }
+        }
+
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            if (confirm('Czy na pewno chcesz się wylogować?')) {
+                localStorage.removeItem('app_authenticated');
+                checkAuthStatus();
+            }
+        });
+
+        checkAuthStatus();
+
+        // LOGIKA APILKACJI MAPOWEJ
+        function findCardByName(name) {
+            const cards = document.querySelectorAll('.region-card');
+            return Array.from(cards).find(c => c.getAttribute('data-region-name') === name);
+        }
+
+        function getFlatLatLngs(layer) {
+            let latLngs = layer.getLatLngs();
+            while (Array.isArray(latLngs) && latLngs.length > 0 && Array.isArray(latLngs[0])) {
+                latLngs = latLngs[0];
+            }
+            return latLngs;
+        }
+
+        function createPinIcon(color) {
+            const svgIcon = `
+                <svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 9 12 20 12 20s12-11 12-20c0-6.63-5.37-12-12-12z" fill="${color}" stroke="#111111" stroke-width="1.5"/>
+                    <circle cx="12" cy="10" r="4" fill="#ffffff"/>
+                </svg>`;
+
+            return L.divIcon({
+                className: 'custom-pin-marker',
+                html: svgIcon,
+                iconSize: [24, 32],
+                iconAnchor: [12, 32],
+                popupAnchor: [0, -30]
+            });
+        }
+
+        const map = L.map('map').setView([52.237, 21.017], 6);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+
+        // --- PALETA I GENERATOR KOLORÓW ---
         const REGION_COLORS = [
             "#e74c3c", "#2ecc71", "#3498db", "#f39c12", "#9b59b6", 
             "#1abc9c", "#e84393", "#d35400", "#00cec9", "#6c5ce7",
@@ -213,59 +396,442 @@
                 }
             });
 
-            // 1. Zwróć pierwszy kolor z palety, który nie jest jeszcze użyty na mapie
             for (const color of REGION_COLORS) {
                 if (!usedColors.has(color.toLowerCase())) {
                     return color;
                 }
             }
 
-            // 2. Jeśli wszystkie 25 kolorów są już na mapie, wygeneruj losowy odcień
             return '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
         }
 
-        // --- INICJALIZACJA MAPY ---
-        const map = L.map('map').setView([52.237049, 21.017532], 11);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-
-        const drawnItems = new L.FeatureGroup();
-        map.addLayer(drawnItems);
-
-        let regionCounter = 1;
-        let selectedLayer = null;
-
-        // Narzędzia Rysowania
         const drawControl = new L.Control.Draw({
+            edit: false,
             draw: {
-                polyline: false,
-                circle: false,
-                circlemarker: false,
-                marker: false,
-                polygon: {
-                    allowIntersection: false,
-                    showArea: true
+                polygon: { 
+                    allowIntersection: false, 
+                    showArea: true,
+                    snapDistance: 20
                 },
-                rectangle: true
-            },
-            edit: {
-                featureGroup: drawnItems,
-                remove: true
+                rectangle: true,
+                polyline: false, circle: false, marker: false, circlemarker: false
             }
         });
         map.addControl(drawControl);
 
-        // --- OBSŁUGA ZDARZEŃ RYSOWANIA ---
+        let selectedLayer = null;
+        let isEditing = false;
+        let showOnlyUnassigned = false;
+        const toggleEditBtn = document.getElementById('toggleEditBtn');
+        const saveEditBtn = document.getElementById('saveEditBtn');
+        const undoBtn = document.getElementById('undoBtn');
+        let processedFilesSet = new Set();
+        let allMarkers = [];
+
+        const undoStack = [];
+        const MAX_UNDO = 30;
+
+        function recordState() {
+            const snapshotPolygons = [];
+            drawnItems.eachLayer(layer => {
+                if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+                    const flat = getFlatLatLngs(layer);
+                    snapshotPolygons.push({
+                        name: layer.regionName || 'Rejon',
+                        color: layer.regionColor || '#3388ff',
+                        latLngs: flat.map(ll => ({ lat: ll.lat, lng: ll.lng }))
+                    });
+                }
+            });
+
+            const snapshotMarkers = allMarkers.map(m => ({
+                lat: m.getLatLng().lat,
+                lng: m.getLatLng().lng,
+                title: m.markerTitle || 'Punkt'
+            }));
+
+            const snapshot = {
+                polygons: snapshotPolygons,
+                markers: snapshotMarkers,
+                processedFiles: Array.from(processedFilesSet)
+            };
+
+            undoStack.push(snapshot);
+            if (undoStack.length > MAX_UNDO) {
+                undoStack.shift();
+            }
+            updateUndoBtnState();
+        }
+
+        function undoLastAction() {
+            if (undoStack.length === 0) return;
+
+            if (isEditing) {
+                drawnItems.eachLayer(layer => disableLayerEditing(layer));
+                isEditing = false;
+                saveEditBtn.style.display = 'none';
+                toggleEditBtn.style.display = 'block';
+            }
+
+            const previousState = undoStack.pop();
+
+            processedFilesSet = new Set(previousState.processedFiles);
+
+            drawnItems.clearLayers();
+            selectRegion(null);
+
+            previousState.polygons.forEach(item => {
+                const polygonLayer = L.polygon(item.latLngs, {
+                    color: item.color,
+                    fillColor: item.color,
+                    fillOpacity: 0.4,
+                    weight: 3
+                });
+
+                drawnItems.addLayer(polygonLayer);
+                polygonLayer.regionColor = item.color;
+                polygonLayer.regionName = item.name;
+                attachLayerEvents(polygonLayer);
+            });
+
+            markersClusterGroup.clearLayers();
+            allMarkers = [];
+
+            previousState.markers.forEach(pm => {
+                const m = createInteractiveMarker(pm.lat, pm.lng, pm.title);
+                allMarkers.push(m);
+            });
+            markersClusterGroup.addLayers(allMarkers);
+
+            rebuildRegionsListUI();
+            recalculateAllStats();
+            saveToLocalStorage();
+            updateUndoBtnState();
+        }
+
+        function updateUndoBtnState() {
+            undoBtn.disabled = undoStack.length === 0;
+        }
+
+        undoBtn.addEventListener('click', undoLastAction);
+
+        window.addEventListener('keydown', (e) => {
+            const activeEl = document.activeElement;
+            const isEditingText = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !isEditingText) {
+                e.preventDefault();
+                undoLastAction();
+            }
+        });
+
+        function getEasterSunday(year) {
+            const a = year % 19;
+            const b = Math.floor(year / 100);
+            const c = year % 100;
+            const d = Math.floor(b / 4);
+            const e = b % 4;
+            const f = Math.floor((b + 8) / 25);
+            const g = Math.floor((b - f + 1) / 3);
+            const h = (19 * a + b - d - g + 15) % 30;
+            const i = Math.floor(c / 4);
+            const k = c % 4;
+            const l = (32 + 2 * e + 2 * i - h - k) % 7;
+            const m = Math.floor((a + 11 * h + 22 * l) / 451);
+            const month = Math.floor((h + l - 7 * m + 114) / 31);
+            const day = ((h + l - 7 * m + 114) % 31) + 1;
+            return new Date(year, month - 1, day);
+        }
+
+        function getPolishHolidays(year) {
+            const holidays = [
+                `${year}-01-01`, `${year}-01-06`, `${year}-05-01`, `${year}-05-03`,
+                `${year}-08-15`, `${year}-11-01`, `${year}-11-11`, `${year}-12-25`, `${year}-12-26`
+            ];
+
+            const easter = getEasterSunday(year);
+            const easterMonday = new Date(easter);
+            easterMonday.setDate(easter.getDate() + 1);
+            
+            const corpusChristi = new Date(easter);
+            corpusChristi.setDate(easter.getDate() + 60);
+
+            const formatDate = (d) => {
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${d.getFullYear()}-${m}-${day}`;
+            };
+
+            holidays.push(formatDate(easterMonday));
+            holidays.push(formatDate(corpusChristi));
+
+            return holidays;
+        }
+
+        function getWorkingDaysCount(year, month) {
+            const holidays = getPolishHolidays(year);
+            const daysInMonth = new Date(year, month, 0).getDate();
+            let count = 0;
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month - 1, day);
+                const dayOfWeek = date.getDay();
+                const mStr = String(month).padStart(2, '0');
+                const dStr = String(day).padStart(2, '0');
+                const dateString = `${year}-${mStr}-${dStr}`;
+
+                if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidays.includes(dateString)) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        const monthSelect = document.getElementById('monthSelect');
+        const yearSelect = document.getElementById('yearSelect');
+        const workdaysCountEl = document.getElementById('workdaysCount');
+
+        const monthNames = [
+            'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
+            'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'
+        ];
+
+        monthNames.forEach((name, idx) => {
+            const opt = document.createElement('option');
+            opt.value = idx + 1;
+            opt.innerText = name;
+            monthSelect.appendChild(opt);
+        });
+
+        const currentYear = new Date().getFullYear();
+        const startYear = 2026;
+        const endYear = Math.max(startYear + 5, currentYear + 2);
+
+        for (let y = startYear; y <= endYear; y++) {
+            const opt = document.createElement('option');
+            opt.value = y;
+            opt.innerText = y;
+            yearSelect.appendChild(opt);
+        }
+
+        const now = new Date();
+        monthSelect.value = now.getFullYear() >= startYear ? now.getMonth() + 1 : 1;
+        yearSelect.value = now.getFullYear() >= startYear ? now.getFullYear() : startYear;
+
+        function updateWorkdaysDisplay() {
+            const selectedMonth = parseInt(monthSelect.value);
+            const selectedYear = parseInt(yearSelect.value);
+            const workdays = getWorkingDaysCount(selectedYear, selectedMonth);
+            workdaysCountEl.innerText = workdays;
+            recalculateAllStats();
+        }
+
+        monthSelect.addEventListener('change', updateWorkdaysDisplay);
+        yearSelect.addEventListener('change', updateWorkdaysDisplay);
+
+        function createInteractiveMarker(lat, lng, title) {
+            const defaultColor = "#7f8c8d";
+            
+            const marker = L.marker([lat, lng], {
+                draggable: true,
+                icon: createPinIcon(defaultColor),
+                title: title
+            });
+
+            marker.markerTitle = title;
+            marker.currentColor = defaultColor;
+
+            marker.on('dragstart', () => {
+                recordState();
+            });
+
+            marker.on('dragend', () => {
+                recalculateAllStats();
+                saveMarkersToLocalStorage();
+            });
+
+            const popupContainer = document.createElement('div');
+            popupContainer.innerHTML = `<b>${escapeXml(title)}</b><br>`;
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-delete-marker';
+            deleteBtn.innerText = '🗑️ Usuń punkt';
+            
+            deleteBtn.addEventListener('click', () => {
+                recordState();
+                markersClusterGroup.removeLayer(marker);
+                allMarkers = allMarkers.filter(m => m !== marker);
+                recalculateAllStats();
+                saveMarkersToLocalStorage();
+            });
+
+            popupContainer.appendChild(deleteBtn);
+            marker.bindPopup(popupContainer);
+
+            return marker;
+        }
+
+        function selectRegion(layer) {
+            if (isEditing) saveCurrentEdits();
+
+            if (selectedLayer) {
+                const oldName = selectedLayer.regionName;
+                drawnItems.eachLayer(l => {
+                    if (l.regionName === oldName) {
+                        l.setStyle({ weight: 3, dashArray: null });
+                    }
+                });
+                const prevCard = findCardByName(oldName || '');
+                if (prevCard) prevCard.classList.remove('selected');
+            }
+
+            selectedLayer = layer;
+
+            if (selectedLayer) {
+                const targetName = selectedLayer.regionName;
+                drawnItems.eachLayer(l => {
+                    if (l.regionName === targetName) {
+                        l.setStyle({ weight: 6, dashArray: '6, 6' });
+                    }
+                });
+                const card = findCardByName(targetName || '');
+                if (card) {
+                    card.classList.add('selected');
+                    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                toggleEditBtn.innerText = '✏️ Edytuj zaznaczony rejon';
+
+                if (!isEditing) {
+                    selectedLayer.openPopup();
+                }
+            } else {
+                toggleEditBtn.innerText = '✏️ Edytuj wszystkie rejony';
+            }
+        }
+
+        function enableLayerEditing(layer) {
+            if (!layer.editing) {
+                if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+                    layer.editing = new L.EditToolbar.Edit(map, {
+                        featureGroup: L.featureGroup([layer])
+                    });
+                }
+            }
+            if (layer.editing) {
+                layer.editing.enable();
+
+                if (!layer._hasUndoEvents) {
+                    layer.on('editstart', () => recordState());
+                    layer.on('dragstart', () => recordState());
+                    layer._hasUndoEvents = true;
+                }
+            }
+        }
+
+        function disableLayerEditing(layer) {
+            if (layer.editing) {
+                layer.editing.disable();
+            }
+        }
+
+        toggleEditBtn.addEventListener('click', () => {
+            if (drawnItems.getLayers().length === 0) {
+                alert('Brak rejonów do edycji!');
+                return;
+            }
+
+            recordState();
+
+            isEditing = true;
+            toggleEditBtn.style.display = 'none';
+            saveEditBtn.style.display = 'block';
+
+            if (selectedLayer) {
+                const targetName = selectedLayer.regionName;
+                drawnItems.eachLayer(layer => {
+                    if (layer.regionName === targetName) {
+                        enableLayerEditing(layer);
+                    }
+                });
+            } else {
+                drawnItems.eachLayer(layer => {
+                    enableLayerEditing(layer);
+                });
+            }
+        });
+
+        saveEditBtn.addEventListener('click', saveCurrentEdits);
+
+        function saveCurrentEdits() {
+            if (!isEditing) return;
+
+            drawnItems.eachLayer(layer => {
+                disableLayerEditing(layer);
+            });
+
+            isEditing = false;
+            saveEditBtn.style.display = 'none';
+            toggleEditBtn.style.display = 'block';
+
+            recalculateAllStats();
+            saveToLocalStorage();
+        }
+
+        let searchMarker = null;
+
+        function clearSearchMarker() {
+            if (searchMarker) {
+                map.removeLayer(searchMarker);
+                searchMarker = null;
+            }
+        }
+
+        L.Control.geocoder({
+            defaultMarkGeocode: false,
+            placeholder: "Szukaj adresu...",
+            errorMessage: "Nie znaleziono adresu."
+        })
+        .on('markgeocode', function(e) {
+            clearSearchMarker();
+
+            const bbox = e.geocode.bbox;
+            const poly = L.polygon([
+                bbox.getSouthEast(), bbox.getNorthEast(),
+                bbox.getNorthWest(), bbox.getSouthWest()
+            ]);
+            map.fitBounds(poly.getBounds());
+
+            searchMarker = L.marker(e.geocode.center)
+                .bindPopup(`<b>${escapeXml(e.geocode.name)}</b>`)
+                .addTo(map)
+                .openPopup();
+
+            searchMarker.on('popupclose', function() {
+                clearSearchMarker();
+            });
+        })
+        .addTo(map);
+
+        map.on('click', function(e) {
+            clearSearchMarker();
+            if (e.originalEvent.target.classList.contains('leaflet-container')) {
+                selectRegion(null);
+            }
+        });
+
+        const markersClusterGroup = L.markerClusterGroup({ chunkedLoading: true });
+        map.addLayer(markersClusterGroup);
+
+        let regionCounter = 1;
+
         map.on(L.Draw.Event.CREATED, function (e) {
+            recordState();
+
             const layer = e.layer;
             drawnItems.addLayer(layer);
 
             if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
                 const defaultColor = getNextRegionColor();
-                
                 layer.setStyle({ color: defaultColor, fillColor: defaultColor, fillOpacity: 0.35, weight: 3 });
 
                 const regionName = `Rejon ${regionCounter++}`;
@@ -275,101 +841,836 @@
                 attachLayerEvents(layer);
                 rebuildRegionsListUI();
                 selectRegion(layer);
+
+                recalculateAllStats();
+                saveToLocalStorage();
             }
         });
 
-        map.on(L.Draw.Event.EDITED, function () {
-            rebuildRegionsListUI();
-        });
-
-        map.on(L.Draw.Event.DELETED, function () {
-            rebuildRegionsListUI();
-        });
-
-        // --- POMOCNICZE FUNKCJE OBSŁUGI WARSTW ---
         function attachLayerEvents(layer) {
-            layer.on('click', function () {
+            const popupContent = document.createElement('div');
+            popupContent.style.textAlign = 'center';
+            popupContent.style.display = 'flex';
+            popupContent.style.flexDirection = 'column';
+            popupContent.style.gap = '4px';
+
+            const editAreaBtn = document.createElement('button');
+            editAreaBtn.className = 'btn-action btn-edit-toggle';
+            editAreaBtn.innerText = '✏️ Edytuj obszar';
+            editAreaBtn.style.padding = '4px 8px';
+            editAreaBtn.style.fontSize = '11px';
+
+            editAreaBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                layer.closePopup();
+                
+                recordState();
+
+                selectRegion(layer);
+
+                isEditing = true;
+                toggleEditBtn.style.display = 'none';
+                saveEditBtn.style.display = 'block';
+
+                enableLayerEditing(layer);
+            });
+
+            const deleteAreaBtn = document.createElement('button');
+            deleteAreaBtn.className = 'btn-delete-marker';
+            deleteAreaBtn.innerText = '🗑️ Usuń tylko ten obszar';
+            deleteAreaBtn.style.marginTop = '0';
+
+            deleteAreaBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                recordState();
+
+                disableLayerEditing(layer);
+                drawnItems.removeLayer(layer);
+                
+                if (selectedLayer === layer) {
+                    selectRegion(null);
+                }
+
+                rebuildRegionsListUI();
+                recalculateAllStats();
+                saveToLocalStorage();
+            });
+
+            popupContent.appendChild(editAreaBtn);
+            popupContent.appendChild(deleteAreaBtn);
+            layer.bindPopup(popupContent);
+
+            layer.on('click', function (e) {
+                L.DomEvent.stopPropagation(e);
                 selectRegion(layer);
             });
         }
 
-        function selectRegion(layer) {
-            selectedLayer = layer;
+        const fileInput = document.getElementById('fileInput');
+        const processFilesBtn = document.getElementById('processFilesBtn');
+        const fileQueueBox = document.getElementById('fileQueueBox');
+        const queueToggleHeader = document.getElementById('queueToggleHeader');
+        const toggleIcon = document.getElementById('toggleIcon');
+
+        queueToggleHeader.addEventListener('click', () => {
+            if (fileQueueBox.style.display === 'none') {
+                fileQueueBox.style.display = 'block';
+                toggleIcon.innerText = '▼';
+            } else {
+                fileQueueBox.style.display = 'none';
+                toggleIcon.innerText = '►';
+            }
+        });
+
+        fileInput.addEventListener('click', function() { this.value = null; });
+
+        fileInput.addEventListener('change', function() {
+            const files = fileInput.files;
+            if (!files || files.length === 0) {
+                queueToggleHeader.style.display = 'none';
+                fileQueueBox.style.display = 'none';
+                return;
+            }
+
+            fileQueueBox.innerHTML = '';
+            queueToggleHeader.style.display = 'flex';
+            fileQueueBox.style.display = 'block';
+            toggleIcon.innerText = '▼';
+
+            Array.from(files).forEach((file, index) => {
+                const sizeKb = (file.size / 1024).toFixed(1);
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'file-queue-item';
+                itemDiv.innerHTML = `
+                    <div class="file-header">
+                        <span class="file-name" title="${file.name}">${file.name}</span>
+                        <span class="file-status status-waiting" id="file-status-${index}">Oczekuje</span>
+                    </div>
+                    <div class="file-detail" id="file-detail-${index}">Rozmiar: ${sizeKb} KB</div>
+                `;
+                fileQueueBox.appendChild(itemDiv);
+            });
+
+            document.getElementById('status').innerText = `Wybrano ${files.length} plik(ów). Kliknij przycisk poniżej.`;
+        });
+
+        processFilesBtn.addEventListener('click', async function() {
+            const files = fileInput.files;
+            if (!files || files.length === 0) {
+                alert('Najpierw wybierz pliki z dysku!');
+                return;
+            }
+
+            recordState();
+
+            processFilesBtn.disabled = true;
+            let totalPolygons = 0;
+            let totalMarkers = 0;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const statusBadge = document.getElementById(`file-status-${i}`);
+                const detailDiv = document.getElementById(`file-detail-${i}`);
+
+                const fileKey = `${file.name}_${file.size}_${file.lastModified}`;
+
+                if (processedFilesSet.has(fileKey)) {
+                    if (statusBadge) {
+                        statusBadge.className = 'file-status status-skipped';
+                        statusBadge.innerText = 'Pominięto';
+                        detailDiv.innerText = 'Plik został już wcześniej wczytany';
+                    }
+                    continue;
+                }
+
+                if (statusBadge) {
+                    statusBadge.className = 'file-status status-processing';
+                    statusBadge.innerText = 'Przetwarzanie';
+                }
+
+                try {
+                    const result = await processSingleFile(file);
+                    totalPolygons += result.polygons;
+                    totalMarkers += result.markers;
+
+                    processedFilesSet.add(fileKey);
+
+                    if (statusBadge) {
+                        if (result.polygons > 0 || result.markers > 0) {
+                            statusBadge.className = 'file-status status-done';
+                            statusBadge.innerText = 'Wgrano';
+                            detailDiv.innerText = `Obszary: ${result.polygons}, Punkty: ${result.markers}`;
+                        } else {
+                            statusBadge.className = 'file-status status-empty';
+                            statusBadge.innerText = 'Brak danych';
+                            detailDiv.innerText = 'Nie znaleziono obiektów';
+                        }
+                    }
+                } catch (err) {
+                    console.error('Błąd pliku:', file.name, err);
+                    if (statusBadge) {
+                        statusBadge.className = 'file-status status-error';
+                        statusBadge.innerText = 'Błąd';
+                        detailDiv.innerText = err.message || 'Błąd odczytu';
+                    }
+                }
+            }
+
             rebuildRegionsListUI();
+            recalculateAllStats();
+            saveToLocalStorage();
+
+            if (drawnItems.getLayers().length > 0) {
+                map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
+            } else if (markersClusterGroup.getLayers().length > 0) {
+                map.fitBounds(markersClusterGroup.getBounds(), { padding: [30, 30] });
+            }
+
+            document.getElementById('status').innerText = `Koniec! Wgrano ${totalPolygons} obszarów i ${totalMarkers} punktów.`;
+            processFilesBtn.disabled = false;
+        });
+
+        function processSingleFile(file) {
+            return new Promise((resolve, reject) => {
+                const name = file.name.toLowerCase();
+
+                if (name.endsWith('.kml')) {
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        try { resolve(parseAndRenderKmlString(e.target.result)); } 
+                        catch (err) { reject(err); }
+                    };
+                    reader.onerror = () => reject(new Error('Błąd odczytu pliku KML'));
+                    reader.readAsText(file);
+                } 
+                else if (name.endsWith('.kmz')) {
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        JSZip.loadAsync(e.target.result)
+                            .then(zip => {
+                                const kmlFile = Object.keys(zip.files).find(f => f.toLowerCase().endsWith('.kml'));
+                                if (!kmlFile) throw new Error('Brak pliku KML w archiwum KMZ');
+                                return zip.files[kmlFile].async('string');
+                            })
+                            .then(xmlStr => resolve(parseAndRenderKmlString(xmlStr)))
+                            .catch(reject);
+                    };
+                    reader.onerror = () => reject(new Error('Błąd odczytu pliku KMZ'));
+                    reader.readAsArrayBuffer(file);
+                } 
+                else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const json = XLSX.utils.sheet_to_json(sheet);
+                            const count = renderTableData(json);
+                            resolve({ polygons: 0, markers: count });
+                        } catch (err) { reject(err); }
+                    };
+                    reader.onerror = () => reject(new Error('Błąd odczytu pliku Excel'));
+                    reader.readAsArrayBuffer(file);
+                } 
+                else if (name.endsWith('.csv')) {
+                    Papa.parse(file, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: res => resolve({ polygons: 0, markers: renderTableData(res.data) }),
+                        error: err => reject(err)
+                    });
+                } 
+                else {
+                    reject(new Error('Nieobsługiwany format pliku'));
+                }
+            });
         }
 
-        function calculateAreaSqKm(layer) {
-            const geojson = layer.toGeoJSON();
-            const areaInSqMeters = turf.area(geojson);
-            return (areaInSqMeters / 1000000).toFixed(2);
+        function parseAndRenderKmlString(xmlString) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
+
+            if (xmlDoc.querySelector('parsererror')) {
+                throw new Error('Błąd składni XML/KML');
+            }
+
+            const placemarks = xmlDoc.querySelectorAll('Placemark');
+            let importedPolygons = 0;
+            const newMarkers = [];
+
+            placemarks.forEach(placemark => {
+                const nameEl = placemark.querySelector('name');
+                const regionName = nameEl ? nameEl.textContent.trim() : `Rejon ${regionCounter++}`;
+
+                let polyColor = '#3388ff';
+                const styleUrlEl = placemark.querySelector('styleUrl');
+                if (styleUrlEl) {
+                    const styleId = styleUrlEl.textContent.replace('#', '');
+                    let targetStyleId = styleId;
+                    
+                    const styleMapEl = xmlDoc.querySelector(`StyleMap[id="${styleId}"]`);
+                    if (styleMapEl) {
+                        const normalPair = Array.from(styleMapEl.querySelectorAll('Pair')).find(p => {
+                            const key = p.querySelector('key');
+                            return key && key.textContent.trim() === 'normal';
+                        });
+                        if (normalPair) {
+                            const pairUrl = normalPair.querySelector('styleUrl');
+                            if (pairUrl) targetStyleId = pairUrl.textContent.replace('#', '');
+                        }
+                    }
+
+                    const styleEl = xmlDoc.querySelector(`Style[id="${targetStyleId}"]`);
+                    if (styleEl) {
+                        const colorEl = styleEl.querySelector('PolyStyle > color, LineStyle > color');
+                        if (colorEl) polyColor = kmlColorToHex(colorEl.textContent);
+                    }
+                }
+
+                const polygons = placemark.querySelectorAll('Polygon');
+                polygons.forEach(polygon => {
+                    const coordsEl = polygon.querySelector('outerBoundaryIs LinearRing coordinates, coordinates');
+                    if (!coordsEl) return;
+
+                    const rawText = coordsEl.textContent.trim();
+                    const coordTokens = rawText.split(/\s+/);
+                    const latLngs = [];
+
+                    coordTokens.forEach(token => {
+                        const parts = token.split(',');
+                        if (parts.length >= 2) {
+                            const lng = parseFloat(parts[0]);
+                            const lat = parseFloat(parts[1]);
+                            if (!isNaN(lat) && !isNaN(lng)) {
+                                latLngs.push([lat, lng]);
+                            }
+                        }
+                    });
+
+                    if (latLngs.length >= 3) {
+                        const polygonLayer = L.polygon(latLngs, {
+                            color: polyColor,
+                            fillColor: polyColor,
+                            fillOpacity: 0.4,
+                            weight: 3
+                        });
+
+                        drawnItems.addLayer(polygonLayer);
+                        polygonLayer.regionColor = polyColor;
+                        polygonLayer.regionName = regionName;
+
+                        attachLayerEvents(polygonLayer);
+                        importedPolygons++;
+                    }
+                });
+
+                const pointCoordsEl = placemark.querySelector('Point coordinates');
+                if (pointCoordsEl) {
+                    const parts = pointCoordsEl.textContent.trim().split(',');
+                    if (parts.length >= 2) {
+                        const lng = parseFloat(parts[0]);
+                        const lat = parseFloat(parts[1]);
+                        if (!isNaN(lat) && !isNaN(lng)) {
+                            const m = createInteractiveMarker(lat, lng, regionName);
+                            newMarkers.push(m);
+                            allMarkers.push(m);
+                        }
+                    }
+                }
+            });
+
+            if (newMarkers.length > 0) {
+                markersClusterGroup.addLayers(newMarkers);
+            }
+
+            return { polygons: importedPolygons, markers: newMarkers.length };
         }
 
-        // --- INTERFEJS UŻYTKOWNIKA (SIDEBAR) ---
+        function kmlColorToHex(kmlColor) {
+            if (!kmlColor || kmlColor.length < 6) return '#3388ff';
+            const clean = kmlColor.trim();
+            let b, g, r;
+            if (clean.length === 8) {
+                b = clean.substring(2, 4);
+                g = clean.substring(4, 6);
+                r = clean.substring(6, 8);
+            } else {
+                b = clean.substring(0, 2);
+                g = clean.substring(2, 4);
+                r = clean.substring(4, 6);
+            }
+            return `#${r}${g}${b}`;
+        }
+
+        function hexToKmlColor(hex) {
+            let cleanHex = hex.replace('#', '');
+            if (cleanHex.length === 3) {
+                cleanHex = cleanHex.split('').map(c => c + c).join('');
+            }
+            const r = cleanHex.substring(0, 2);
+            const g = cleanHex.substring(2, 4);
+            const b = cleanHex.substring(4, 6);
+            return `ff${b}${g}${r}`;
+        } 
+
+        function escapeXml(unsafe) {
+            if (!unsafe) return '';
+            return unsafe.replace(/[<>&'"]/g, c => {
+                switch (c) {
+                    case '<': return '&lt;';
+                    case '>': return '&gt;';
+                    case '&': return '&amp;';
+                    case '\'': return '&apos;';
+                    case '"': return '&quot;';
+                }
+            });
+        }
+
+        function renderTableData(rows) {
+            const newMarkers = [];
+            rows.forEach(row => {
+                const latKey = Object.keys(row).find(k => ['lat', 'latitude', 'szerokosc', 'szerokość'].includes(k.trim().toLowerCase()));
+                const lonKey = Object.keys(row).find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość'].includes(k.trim().toLowerCase()));
+                const labelKey = Object.keys(row).find(k => ['adres', 'address', 'nazwa', 'name'].includes(k.trim().toLowerCase()));
+
+                if (latKey && lonKey) {
+                    const lat = parseFloat(row[latKey]);
+                    const lon = parseFloat(row[lonKey]);
+                    const label = labelKey ? row[labelKey] : 'Punkt';
+
+                    if (!isNaN(lat) && !isNaN(lon)) {
+                        const m = createInteractiveMarker(lat, lon, label);
+                        newMarkers.push(m);
+                        allMarkers.push(m);
+                    }
+                }
+            });
+
+            markersClusterGroup.addLayers(newMarkers);
+            return newMarkers.length;
+        }
+
+        function recalculateAllStats() {
+            const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            
+            const preparedLayers = regionLayers.map(layer => ({
+                layer: layer,
+                geoJSON: layer.toGeoJSON(),
+                name: layer.regionName || 'Bez nazwy',
+                color: layer.regionColor || '#3388ff'
+            }));
+
+            let unassignedCount = 0;
+
+            const countsByName = {};
+            preparedLayers.forEach(pl => {
+                if (!countsByName[pl.name]) countsByName[pl.name] = 0;
+            });
+
+            allMarkers.forEach(marker => {
+                const latLng = marker.getLatLng();
+                const turfPoint = turf.point([latLng.lng, latLng.lat]);
+                let isInsideAny = false;
+                let matchedColor = null;
+
+                const matchedNames = new Set();
+                preparedLayers.forEach(pl => {
+                    if (turf.booleanPointInPolygon(turfPoint, pl.geoJSON)) {
+                        matchedNames.add(pl.name);
+                        isInsideAny = true;
+                        matchedColor = pl.color;
+                    }
+                });
+
+                matchedNames.forEach(name => {
+                    countsByName[name]++;
+                });
+
+                marker.isAssigned = isInsideAny;
+
+                const targetColor = (isInsideAny && matchedColor) ? matchedColor : '#7f8c8d';
+
+                if (marker.currentColor !== targetColor) {
+                    marker.setIcon(createPinIcon(targetColor));
+                    marker.currentColor = targetColor;
+                }
+
+                if (!isInsideAny) {
+                    unassignedCount++;
+                }
+            });
+
+            const workdays = parseInt(workdaysCountEl.innerText) || 0;
+
+            const cards = document.querySelectorAll('.region-card');
+            cards.forEach(card => {
+                const name = card.getAttribute('data-region-name');
+                const pointCountEl = card.querySelector('.point-count');
+                const pointPerDayEl = card.querySelector('.point-per-day');
+
+                const count = countsByName[name] || 0;
+                if (pointCountEl) {
+                    pointCountEl.innerText = count;
+                }
+                if (pointPerDayEl) {
+                    const perDay = workdays > 0 ? Math.round(count / workdays) : 0;
+                    pointPerDayEl.innerText = perDay;
+                }
+            });
+
+            document.getElementById('unassignedCount').innerText = unassignedCount;
+
+            if (showOnlyUnassigned) filterUnassignedMarkers();
+        }
+
+        const toggleUnassignedBtn = document.getElementById('toggleUnassignedBtn');
+        toggleUnassignedBtn.addEventListener('click', () => {
+            showOnlyUnassigned = !showOnlyUnassigned;
+            if (showOnlyUnassigned) {
+                toggleUnassignedBtn.innerText = 'Pokaż wszystkie punkty';
+                filterUnassignedMarkers();
+            } else {
+                toggleUnassignedBtn.innerText = 'Pokaż tylko nieprzypisane';
+                markersClusterGroup.clearLayers();
+                markersClusterGroup.addLayers(allMarkers);
+            }
+        });
+
+        function filterUnassignedMarkers() {
+            const unassigned = allMarkers.filter(m => !m.isAssigned);
+            markersClusterGroup.clearLayers();
+            markersClusterGroup.addLayers(unassigned);
+        }
+
         function rebuildRegionsListUI() {
-            const container = document.getElementById('regionsList');
-            container.innerHTML = '';
+            const regionsList = document.getElementById('regionsList');
+            regionsList.innerHTML = '';
 
             const layers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
 
             if (layers.length === 0) {
-                container.innerHTML = '<div class="empty-state">Brak narysowanych obszarów.<br>Użyj narzędzi po lewej stronie mapy, aby dodać rejon.</div>';
+                regionsList.innerHTML = `
+                    <div id="emptyInfo" style="text-align: center; color: #adb5bd; margin-top: 20px; font-size: 12px;">
+                        Brak narysowanych rejonów. Wczytaj pliki lub narysuj obszar ręcznie.
+                    </div>
+                `;
                 return;
             }
 
+            const groups = {};
             layers.forEach(layer => {
-                const card = document.createElement('div');
-                card.className = `region-card ${selectedLayer === layer ? 'active' : ''}`;
-                
-                const area = calculateAreaSqKm(layer);
+                const name = layer.regionName || 'Bez nazwy';
+                if (!groups[name]) {
+                    groups[name] = [];
+                }
+                groups[name].push(layer);
+            });
 
-                card.innerHTML = `
-                    <div class="region-card-header">
-                        <input type="text" class="region-title-input" value="${layer.regionName || 'Rejon'}" />
-                        <input type="color" class="color-picker" value="${layer.regionColor || '#3388ff'}" />
-                    </div>
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <span class="stat-label">Powierzchnia</span>
-                            <span class="stat-value">${area} km²</span>
-                        </div>
-                        <div class="stat-item" style="display:flex; align-items:center; justify-content:flex-end;">
-                            <button class="btn-danger">Usuń</button>
-                        </div>
-                    </div>
-                `;
-
-                // Reakcja na zmianę nazwy
-                const nameInput = card.querySelector('.region-title-input');
-                nameInput.addEventListener('change', (e) => {
-                    layer.regionName = e.target.value;
-                });
-
-                // Reakcja na zmianę koloru
-                const colorInput = card.querySelector('.color-picker');
-                colorInput.addEventListener('input', (e) => {
-                    const newColor = e.target.value;
-                    layer.regionColor = newColor;
-                    layer.setStyle({ color: newColor, fillColor: newColor });
-                });
-
-                // Reakcja na usunięcie
-                const deleteBtn = card.querySelector('.btn-danger');
-                deleteBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    drawnItems.removeLayer(layer);
-                    if (selectedLayer === layer) selectedLayer = null;
-                    rebuildRegionsListUI();
-                });
-
-                // Zaznaczenie po kliknięciu w kartę
-                card.addEventListener('click', () => {
-                    selectRegion(layer);
-                    map.fitBounds(layer.getBounds(), { padding: [50, 50] });
-                });
-
-                container.appendChild(card);
+            Object.keys(groups).forEach(name => {
+                const groupLayers = groups[name];
+                const mainColor = groupLayers[0].regionColor || '#3388ff';
+                const card = createRegionCardGroup(name, groupLayers, mainColor);
+                regionsList.appendChild(card);
             });
         }
+
+        function createRegionCardGroup(name, groupLayers, color) {
+            const card = document.createElement('div');
+            card.className = 'region-card';
+            card.setAttribute('data-region-name', name);
+            card.style.borderLeftColor = color;
+
+            if (selectedLayer && selectedLayer.regionName === name) {
+                card.classList.add('selected');
+            }
+
+            card.innerHTML = `
+                <div class="region-card-header">
+                    <input type="text" class="region-title-input" value="${escapeXml(name)}">
+                </div>
+                <div class="region-stats">
+                    <span>📍 Suma: <b class="point-count">0</b></span>
+                    <span>📅 Na dzień: <b class="point-per-day">0</b></span>
+                    <span style="font-size: 9px; color: #888; flex-basis: 100%;">Obszarów: ${groupLayers.length}</span>
+                </div>
+                <div class="region-controls">
+                    <div class="color-picker-wrapper">
+                        <input type="color" class="color-picker" value="${color}">
+                        <span>Kolor</span>
+                    </div>
+                    <button class="btn btn-zoom">🔍 Wyśrodkuj</button>
+                    <button class="btn btn-delete">🗑️</button>
+                </div>
+            `;
+
+            card.addEventListener('click', (evt) => {
+                if (!evt.target.classList.contains('region-title-input') && 
+                    !evt.target.classList.contains('color-picker') && 
+                    !evt.target.classList.contains('btn-delete')) {
+                    selectRegion(groupLayers[0]);
+                }
+            });
+
+            const titleInput = card.querySelector('.region-title-input');
+            titleInput.addEventListener('focus', () => recordState());
+            titleInput.addEventListener('change', () => {
+                const newName = titleInput.value.trim() || 'Bez nazwy';
+                groupLayers.forEach(l => {
+                    l.regionName = newName;
+                });
+                rebuildRegionsListUI();
+                recalculateAllStats();
+                saveToLocalStorage();
+            });
+
+            const colorPicker = card.querySelector('.color-picker');
+            colorPicker.addEventListener('click', () => recordState());
+            colorPicker.addEventListener('input', (evt) => {
+                const newColor = evt.target.value;
+                groupLayers.forEach(l => {
+                    l.regionColor = newColor;
+                    l.setStyle({ color: newColor, fillColor: newColor });
+                });
+                card.style.borderLeftColor = newColor;
+                recalculateAllStats();
+                saveToLocalStorage();
+            });
+
+            card.querySelector('.btn-zoom').addEventListener('click', (e) => {
+                e.stopPropagation();
+                const groupFeature = L.featureGroup(groupLayers);
+                map.fitBounds(groupFeature.getBounds(), { padding: [30, 30] });
+                selectRegion(groupLayers[0]);
+            });
+
+            card.querySelector('.btn-delete').addEventListener('click', (e) => {
+                e.stopPropagation();
+                recordState();
+
+                if (selectedLayer && selectedLayer.regionName === name) selectRegion(null);
+                groupLayers.forEach(l => drawnItems.removeLayer(l));
+                card.remove();
+                rebuildRegionsListUI();
+                recalculateAllStats();
+                saveToLocalStorage();
+            });
+
+            return card;
+        }
+
+        function saveMarkersToLocalStorage() {
+            const markersData = allMarkers.map(m => ({
+                lat: m.getLatLng().lat,
+                lng: m.getLatLng().lng,
+                title: m.markerTitle || 'Punkt'
+            }));
+            localStorage.setItem('saved_map_markers', JSON.stringify(markersData));
+        }
+
+        function saveToLocalStorage() {
+            const dataToSave = [];
+            drawnItems.eachLayer(layer => {
+                if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+                    const flat = getFlatLatLngs(layer);
+                    dataToSave.push({
+                        id: layer.regionId || ('region-' + Math.random()),
+                        name: layer.regionName || 'Rejon',
+                        color: layer.regionColor || '#3388ff',
+                        latLngs: flat.map(ll => ({ lat: ll.lat, lng: ll.lng }))
+                    });
+                }
+            });
+            localStorage.setItem('saved_map_regions', JSON.stringify(dataToSave));
+            localStorage.setItem('saved_map_month', monthSelect.value);
+            localStorage.setItem('saved_map_year', yearSelect.value);
+
+            saveMarkersToLocalStorage();
+        }
+
+        function loadFromLocalStorage() {
+            const rawMonth = localStorage.getItem('saved_map_month');
+            const rawYear = localStorage.getItem('saved_map_year');
+            if (rawMonth) monthSelect.value = rawMonth;
+            if (rawYear) yearSelect.value = rawYear;
+
+            const rawRegions = localStorage.getItem('saved_map_regions');
+            if (rawRegions) {
+                try {
+                    const regions = JSON.parse(rawRegions);
+                    regions.forEach(r => {
+                        const polygonLayer = L.polygon(r.latLngs, {
+                            color: r.color,
+                            fillColor: r.color,
+                            fillOpacity: 0.4,
+                            weight: 3
+                        });
+
+                        drawnItems.addLayer(polygonLayer);
+                        polygonLayer.regionColor = r.color;
+                        polygonLayer.regionName = r.name;
+                        attachLayerEvents(polygonLayer);
+                    });
+
+                    if (regions.length > 0) {
+                        rebuildRegionsListUI();
+                    }
+                } catch (err) {
+                    console.error("Błąd wczytywania rejonów z localStorage:", err);
+                }
+            }
+
+            const rawMarkers = localStorage.getItem('saved_map_markers');
+            if (rawMarkers) {
+                try {
+                    const loadedMarkers = JSON.parse(rawMarkers);
+                    const newMarkers = [];
+                    loadedMarkers.forEach(pm => {
+                        const m = createInteractiveMarker(pm.lat, pm.lng, pm.title);
+                        newMarkers.push(m);
+                        allMarkers.push(m);
+                    });
+                    markersClusterGroup.addLayers(newMarkers);
+                } catch (err) {
+                    console.error("Błąd wczytywania punktów z localStorage:", err);
+                }
+            }
+
+            if (drawnItems.getLayers().length > 0) {
+                map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
+            } else if (markersClusterGroup.getLayers().length > 0) {
+                map.fitBounds(markersClusterGroup.getBounds(), { padding: [30, 30] });
+            }
+
+            updateWorkdaysDisplay();
+        }
+
+        document.getElementById('resetStorageBtn').addEventListener('click', () => {
+            if (confirm('Czy na pewno chcesz wyczyścić wszystkie punkty na mapie oraz narysowane rejony? Ta operacja jest nieodwracalna.')) {
+                recordState();
+
+                localStorage.removeItem('saved_map_regions');
+                localStorage.removeItem('saved_map_markers');
+                localStorage.removeItem('saved_map_month');
+                localStorage.removeItem('saved_map_year');
+                drawnItems.clearLayers();
+                markersClusterGroup.clearLayers();
+                allMarkers = [];
+                processedFilesSet.clear();
+
+                const fileQueueBox = document.getElementById('fileQueueBox');
+                fileQueueBox.innerHTML = '';
+                document.getElementById('queueToggleHeader').style.display = 'none';
+                fileQueueBox.style.display = 'none';
+                document.getElementById('fileInput').value = '';
+                document.getElementById('status').innerText = '';
+
+                selectRegion(null);
+                rebuildRegionsListUI();
+                recalculateAllStats();
+            }
+        });
+
+        document.getElementById('exportXlsxBtn').addEventListener('click', () => {
+            const layers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            if (layers.length === 0) {
+                alert('Brak rejonów do wyeksportowania!');
+                return;
+            }
+
+            const groups = {};
+            layers.forEach(layer => {
+                const name = layer.regionName || 'Bez nazwy';
+                if (!groups[name]) groups[name] = 0;
+            });
+
+            const workdays = parseInt(workdaysCountEl.innerText) || 0;
+
+            const exportData = Object.keys(groups).map(name => {
+                const card = findCardByName(name);
+                const pointCount = card ? parseInt(card.querySelector('.point-count').innerText) || 0 : 0;
+                const pointPerDay = workdays > 0 ? Math.round(pointCount / workdays) : 0;
+
+                return {
+                    "Nazwa rejonu": name,
+                    "Liczba punktów (suma)": pointCount,
+                    "Liczba punktów na dzień": pointPerDay
+                };
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Podsumowanie");
+
+            XLSX.writeFile(workbook, `podsumowanie_rejonow_${new Date().toISOString().slice(0,10)}.xlsx`);
+        });
+
+        document.getElementById('exportKmlBtn').addEventListener('click', () => {
+            const layers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            if (layers.length === 0) {
+                alert('Brak rejonów do wyeksportowania!');
+                return;
+            }
+
+            let kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/22">
+  <Document>
+    <name>Wyeksportowane Rejony</name>\n`;
+
+            layers.forEach((layer, index) => {
+                const regionName = layer.regionName || `Rejon ${index + 1}`;
+                const hexColor = layer.regionColor || "#3388ff";
+                const kmlColor = hexToKmlColor(hexColor);
+
+                const latLngs = getFlatLatLngs(layer);
+                let coordsString = "";
+                
+                latLngs.forEach(ll => {
+                    coordsString += `${ll.lng},${ll.lat},0 `;
+                });
+                if (latLngs.length > 0) {
+                    coordsString += `${latLngs[0].lng},${latLngs[0].lat},0`;
+                }
+
+                const styleId = `style_${index}`;
+
+                kmlContent += `    <Style id="${styleId}">
+      <LineStyle>
+        <color>${kmlColor}</color>
+        <width>3</width>
+      </LineStyle>
+      <PolyStyle>
+        <color>66${kmlColor.substring(2)}</color>
+      </PolyStyle>
+    </Style>
+    <Placemark>
+      <name>${escapeXml(regionName)}</name>
+      <styleUrl>#${styleId}</styleUrl>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>${coordsString.trim()}</coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>\n`;
+            });
+
+            kmlContent += `  </Document>
+</kml>`;
+
+            const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rejony_${new Date().toISOString().slice(0,10)}.kml`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        loadFromLocalStorage();
     </script>
 </body>
 </html>
