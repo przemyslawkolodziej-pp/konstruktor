@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa Rejonów - Import Wielu Plików KML z Listą Postępu</title>
+    <title>Mapa Rejonów - Import KML z Przyskiem Załaduj</title>
     
     <!-- Leaflet & Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -16,7 +16,6 @@
         * { box-sizing: border-box; }
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; overflow: hidden; }
         
-        /* Lewy Panel Boczny */
         #sidebar {
             width: 380px;
             height: 100%;
@@ -40,35 +39,58 @@
             padding: 12px;
             border-radius: 6px;
         }
-        .file-upload-box input { width: 100%; color: white; font-size: 12px; cursor: pointer; }
+        .file-upload-box input[type="file"] { width: 100%; color: white; font-size: 12px; cursor: pointer; }
 
-        /* Lista plików z postępem */
+        .btn-process {
+            width: 100%;
+            margin-top: 10px;
+            padding: 9px;
+            background: #3498db;
+            color: white;
+            font-weight: bold;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+            display: none; /* Domyślnie ukryty, pojawia się po wybraniu plików */
+        }
+        .btn-process:hover { background: #2980b9; }
+
         #fileQueueBox {
             margin-top: 10px;
-            background: #2c3e50;
+            background: #1a252f;
             border-radius: 4px;
             padding: 8px;
-            max-height: 140px;
+            max-height: 180px;
             overflow-y: auto;
             display: none;
         }
 
         .file-queue-item {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
             font-size: 11px;
             color: #ecf0f1;
-            padding: 3px 0;
+            padding: 6px 0;
             border-bottom: 1px solid #3e5871;
         }
         .file-queue-item:last-child { border-bottom: none; }
+        .file-header { display: flex; justify-content: space-between; align-items: center; }
         .file-name { font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
-        .file-status { font-size: 10px; padding: 2px 5px; border-radius: 3px; background: #7f8c8d; }
-        .status-waiting { background: #7f8c8d; }
+        .file-status { font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: bold; }
+        .status-waiting { background: #7f8c8d; color: #fff; }
         .status-processing { background: #f39c12; color: #fff; }
         .status-done { background: #2ecc71; color: #fff; }
         .status-error { background: #e74c3c; color: #fff; }
+        .status-empty { background: #e67e22; color: #fff; }
+
+        .file-detail {
+            font-size: 10px;
+            color: #bdc3c7;
+            margin-top: 3px;
+            word-break: break-all;
+        }
 
         .actions-bar {
             padding: 10px 15px;
@@ -92,7 +114,6 @@
         }
         .btn-export-kml:hover { background: #219653; }
 
-        /* Lista Rejonów */
         #regionsList {
             flex: 1;
             overflow-y: auto;
@@ -175,30 +196,29 @@
         .btn-delete { background: #ffe3e3; color: #dc3545; margin-left: auto; }
         .btn-delete:hover { background: #ffc9c9; }
 
-        /* Mapa */
         #map { flex: 1; height: 100%; }
 
-        /* Pasek postępu głównego */
-        .progress-container { width: 100%; background: #455a64; height: 8px; border-radius: 4px; margin-top: 8px; display: none; overflow: hidden; }
+        .progress-container { width: 100%; background: #455a64; height: 6px; border-radius: 3px; margin-top: 8px; display: none; overflow: hidden; }
         .progress-bar { width: 0%; height: 100%; background: #2ecc71; transition: width 0.2s ease-in-out; }
         .status-text { font-size: 11px; color: #bdc3c7; margin-top: 4px; }
     </style>
 </head>
 <body>
 
-    <!-- LEWY PANEL BOCZNY -->
     <div id="sidebar">
         <div class="sidebar-header">
-            <h3>Wczytaj Pliki (XLSX, CSV, KML, KMZ)</h3>
+            <h3>Wczytaj Pliki KML / KMZ / XLSX</h3>
             <div class="file-upload-box">
                 <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.kml,.kmz" multiple>
                 
+                <!-- Przycisk do aktywacji wgrywania -->
+                <button id="processFilesBtn" class="btn-process">🚀 Załaduj pliki na mapę</button>
+
                 <div id="progressContainer" class="progress-container">
                     <div id="progressBar" class="progress-bar"></div>
                 </div>
                 <div id="status" class="status-text"></div>
 
-                <!-- Lista kolejek plików -->
                 <div id="fileQueueBox"></div>
             </div>
         </div>
@@ -213,18 +233,15 @@
 
         <div id="regionsList">
             <div id="emptyInfo" style="text-align: center; color: #adb5bd; margin-top: 30px; font-size: 13px;">
-                Brak narysowanych rejonów. Narysuj obszar na mapie lub wczytaj plik(i) KML/KMZ.
+                Brak narysowanych rejonów. Wczytaj pliki KML/KMZ lub narysuj obszar ręcznie.
             </div>
         </div>
     </div>
 
-    <!-- MAPA -->
     <div id="map"></div>
 
-    <!-- BIBLIOTEKI JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -232,7 +249,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
     <script>
-        // 1. Inicjalizacja mapy
         const map = L.map('map').setView([52.237, 21.017], 6);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -240,11 +256,9 @@
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        // 2. Grupa dla rysowanych/edytowalnych obszarów
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
 
-        // 3. Leaflet Draw (Narzędzia rysowania i edycji)
         const drawControl = new L.Control.Draw({
             edit: { featureGroup: drawnItems },
             draw: {
@@ -258,13 +272,12 @@
         });
         map.addControl(drawControl);
 
-        // 4. Klastrowanie punktów adresowych
         const markersClusterGroup = L.markerClusterGroup({ chunkedLoading: true });
         map.addLayer(markersClusterGroup);
 
         let regionCounter = 1;
+        let selectedFiles = []; // Przechowywanie wybranych plików
 
-        // 5. OBSŁUGA TWORZENIA NOWEGO REJONU (RĘCZNIE)
         map.on(L.Draw.Event.CREATED, function (e) {
             const layer = e.layer;
             drawnItems.addLayer(layer);
@@ -282,7 +295,6 @@
             }
         });
 
-        // 6. OBSŁUGA EDYCJI NA ŻYWO
         map.on(L.Draw.Event.EDITMOVE, function (e) { updateRegionCount(e.layer); });
         map.on(L.Draw.Event.EDITED, function (e) {
             e.layers.eachLayer(function (layer) { updateRegionCount(layer); });
@@ -307,7 +319,6 @@
             }
         }
 
-        // 7. TWORZENIE KARTY W PANELU BOCZNYM
         function createRegionCard(id, defaultName, count, layer, color) {
             document.getElementById('emptyInfo').style.display = 'none';
             layer.regionId = id;
@@ -360,7 +371,6 @@
             document.getElementById('regionsList').appendChild(card);
         }
 
-        // 8. ZLICZANIE PUNKTÓW
         function countPointsInLayer(layer) {
             const drawnGeoJSON = layer.toGeoJSON();
             let count = 0;
@@ -375,86 +385,249 @@
             return count;
         }
 
-        function recalculateAllRegions() {
-            document.querySelectorAll('.region-card').forEach(card => {
-                const layer = drawnItems.getLayers().find(l => l.regionId === card.id);
-                if (layer) {
-                    const newCount = countPointsInLayer(layer);
-                    card.querySelector('.point-count').innerText = newCount;
-                }
-            });
-        }
-
         function checkEmptyInfo() {
             if (document.querySelectorAll('.region-card').length === 0) {
                 document.getElementById('emptyInfo').style.display = 'block';
             }
         }
 
-        // 9. EKSPORT DO KML
-        document.getElementById('exportKmlBtn').addEventListener('click', function() {
-            const layers = drawnItems.getLayers();
-            if (layers.length === 0) {
-                alert("Najpierw narysuj lub wczytaj co najmniej jeden obszar na mapie!");
+        // ELEMENTY INTERFEJSU PLIKÓW
+        const fileInput = document.getElementById('fileInput');
+        const processFilesBtn = document.getElementById('processFilesBtn');
+        const fileQueueBox = document.getElementById('fileQueueBox');
+
+        // 1. KROK: Wybór plików podgląd na liście, aktywacja przycisku
+        fileInput.addEventListener('change', function(e) {
+            selectedFiles = Array.from(e.target.files);
+            if (selectedFiles.length === 0) {
+                processFilesBtn.style.display = 'none';
+                fileQueueBox.style.display = 'none';
                 return;
             }
 
-            let kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-  <Document>
-    <name>Wyeksportowane Rejony</name>\n`;
+            fileQueueBox.innerHTML = '';
+            fileQueueBox.style.display = 'block';
+            processFilesBtn.style.display = 'block';
 
-            layers.forEach((layer, index) => {
-                if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
-                    const card = document.getElementById(layer.regionId);
-                    const name = card ? card.querySelector('.region-title-input').value : `Rejon ${index + 1}`;
-                    const count = countPointsInLayer(layer);
-                    const hexColor = layer.regionColor || "#3388ff";
-
-                    const kmlColor = hexToKmlColor(hexColor, "59");
-                    const kmlLineColor = hexToKmlColor(hexColor, "ff");
-
-                    const latLngs = layer.getLatLngs()[0];
-                    let coordsString = "";
-                    latLngs.forEach(ll => { coordsString += `${ll.lng},${ll.lat},0 `; });
-                    coordsString += `${latLngs[0].lng},${latLngs[0].lat},0`;
-
-                    kmlContent += `    <Style id="style_${layer.regionId}">
-      <LineStyle><color>${kmlLineColor}</color><width>2</width></LineStyle>
-      <PolyStyle><color>${kmlColor}</color></PolyStyle>
-    </Style>
-    <Placemark>
-      <name>${escapeXml(name)}</name>
-      <description>Liczba punktów w obszarze: ${count}</description>
-      <styleUrl>#style_${layer.regionId}</styleUrl>
-      <Polygon>
-        <outerBoundaryIs>
-          <LinearRing>
-            <coordinates>${coordsString}</coordinates>
-          </LinearRing>
-        </outerBoundaryIs>
-      </Polygon>
-    </Placemark>\n`;
-                }
+            selectedFiles.forEach((file, index) => {
+                const sizeKb = (file.size / 1024).toFixed(1);
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'file-queue-item';
+                itemDiv.id = `file-item-${index}`;
+                itemDiv.innerHTML = `
+                    <div class="file-header">
+                        <span class="file-name" title="${file.name}">${file.name}</span>
+                        <span class="file-status status-waiting" id="file-status-${index}">Gotowy</span>
+                    </div>
+                    <div class="file-detail" id="file-detail-${index}">Rozmiar: ${sizeKb} KB - kliknij "Załaduj pliki"</div>
+                `;
+                fileQueueBox.appendChild(itemDiv);
             });
 
-            kmlContent += `  </Document>\n</kml>`;
-
-            const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `rejony_${new Date().toISOString().slice(0,10)}.kml`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            document.getElementById('status').innerText = `Wybrano ${selectedFiles.length} plik(ów). Kliknij przycisk poniżej.`;
         });
 
-        function hexToKmlColor(hex, alphaHex) {
-            hex = hex.replace('#', '');
-            if(hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-            return `${alphaHex}${hex.substring(4, 6)}${hex.substring(2, 4)}${hex.substring(0, 2)}`;
+        // 2. KROK: Kliknięcie przycisku "Załaduj pliki" -> właściwe wczytywanie na mapę
+        processFilesBtn.addEventListener('click', async function() {
+            if (selectedFiles.length === 0) return;
+
+            processFilesBtn.disabled = true;
+            processFilesBtn.style.opacity = '0.6';
+
+            let totalPolygons = 0;
+            let totalMarkers = 0;
+
+            updateProgress(0, `Rozpoczynanie ładowania ${selectedFiles.length} plików...`);
+
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const statusBadge = document.getElementById(`file-status-${i}`);
+                const detailDiv = document.getElementById(`file-detail-${i}`);
+                
+                statusBadge.className = 'file-status status-processing';
+                statusBadge.innerText = 'Przetwarzanie';
+                detailDiv.innerText = 'Odczytywanie danych XML/KML...';
+
+                const percent = Math.round(((i + 1) / selectedFiles.length) * 100);
+                updateProgress(percent, `Wgrywanie pliku ${i + 1} z ${selectedFiles.length}`);
+
+                await new Promise(r => setTimeout(r, 60));
+
+                try {
+                    const result = await processSingleFile(file);
+                    totalPolygons += result.polygons;
+                    totalMarkers += result.markers;
+
+                    if (result.polygons > 0 || result.markers > 0) {
+                        statusBadge.className = 'file-status status-done';
+                        statusBadge.innerText = 'Zaimportowano';
+                        detailDiv.innerText = `Dodano: ${result.polygons} obszarów, ${result.markers} punktów.`;
+                    } else {
+                        statusBadge.className = 'file-status status-empty';
+                        statusBadge.innerText = 'Brak obiektów';
+                        detailDiv.innerText = 'Plik nie zawierał poprawnych Polygonów ani Pointów.';
+                    }
+                } catch (err) {
+                    console.error("Błąd przetwarzania:", file.name, err);
+                    statusBadge.className = 'file-status status-error';
+                    statusBadge.innerText = 'Błąd';
+                    detailDiv.innerText = `Błąd: ${err.message || 'Nieprawidłowa struktura pliku'}`;
+                }
+            }
+
+            updateProgress(100, `Gotowe! Łącznie dodano ${totalPolygons} obszarów i ${totalMarkers} punktów.`);
+
+            if (drawnItems.getLayers().length > 0) {
+                map.fitBounds(drawnItems.getBounds(), { padding: [40, 40] });
+            } else if (markersClusterGroup.getLayers().length > 0) {
+                map.fitBounds(markersClusterGroup.getBounds(), { padding: [40, 40] });
+            }
+
+            // Reset stanu wyboru
+            fileInput.value = '';
+            selectedFiles = [];
+            processFilesBtn.disabled = false;
+            processFilesBtn.style.opacity = '1';
+            processFilesBtn.style.display = 'none';
+        });
+
+        function processSingleFile(file) {
+            return new Promise((resolve, reject) => {
+                const fileName = file.name.toLowerCase();
+
+                if (fileName.endsWith('.kmz') || fileName.endsWith('.kml')) {
+                    handleKmlKmzFile(file, resolve, reject);
+                } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                    const reader = new FileReader();
+                    reader.readAsArrayBuffer(file);
+                    reader.onload = function(evt) {
+                        try {
+                            const data = new Uint8Array(evt.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                            const count = renderTableData(jsonData);
+                            resolve({ polygons: 0, markers: count });
+                        } catch(e) { reject(e); }
+                    };
+                    reader.onerror = reject;
+                } else if (fileName.endsWith('.csv')) {
+                    Papa.parse(file, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: function(results) {
+                            const count = renderTableData(results.data);
+                            resolve({ polygons: 0, markers: count });
+                        },
+                        error: reject
+                    });
+                } else {
+                    reject(new Error("Nieobsługiwany format pliku."));
+                }
+            });
+        }
+
+        function handleKmlKmzFile(file, resolve, reject) {
+            const isKmz = file.name.toLowerCase().endsWith('.kmz');
+            const reader = new FileReader();
+
+            if (isKmz) {
+                reader.readAsArrayBuffer(file);
+                reader.onload = function(evt) {
+                    JSZip.loadAsync(evt.target.result).then(zip => {
+                        const kmlFile = Object.keys(zip.files).find(name => name.toLowerCase().endsWith('.kml'));
+                        if (kmlFile) return zip.files[kmlFile].async("string");
+                        else throw new Error("Archiwum KMZ nie zawiera pliku .kml");
+                    }).then(xmlStr => {
+                        const res = parseAndRenderKmlString(xmlStr);
+                        resolve(res);
+                    }).catch(reject);
+                };
+                reader.onerror = reject;
+            } else {
+                reader.readAsText(file);
+                reader.onload = function(evt) {
+                    try {
+                        const res = parseAndRenderKmlString(evt.target.result);
+                        resolve(res);
+                    } catch(e) { reject(e); }
+                };
+                reader.onerror = reject;
+            }
+        }
+
+        function parseAndRenderKmlString(xmlString) {
+            const parser = new DOMParser();
+            const kmlDoc = parser.parseFromString(xmlString, 'text/xml');
+            
+            const parserError = kmlDoc.querySelector('parsererror');
+            if (parserError) {
+                throw new Error("Uszkodzony składniowo plik XML/KML");
+            }
+
+            const placemarks = kmlDoc.querySelectorAll('Placemark, placemark');
+            const newMarkers = [];
+            let importedPolygonsCount = 0;
+
+            placemarks.forEach(placemark => {
+                const nameEl = placemark.querySelector('name, Name');
+                const name = nameEl ? nameEl.textContent.trim() : `Rejon KML ${regionCounter++}`;
+
+                const coordsElements = placemark.querySelectorAll('coordinates, Coordinates');
+
+                coordsElements.forEach(coordsEl => {
+                    const coordsText = coordsEl.textContent.trim();
+                    const rawCoords = coordsText.split(/\s+/);
+                    const latLngs = [];
+
+                    rawCoords.forEach(coordStr => {
+                        const parts = coordStr.split(',');
+                        if (parts.length >= 2) {
+                            const lng = parseFloat(parts[0]);
+                            const lat = parseFloat(parts[1]);
+                            if (!isNaN(lat) && !isNaN(lng)) {
+                                latLngs.push([lat, lng]);
+                            }
+                        }
+                    });
+
+                    if (latLngs.length >= 3) {
+                        let color = "#3388ff";
+                        const styleUrlEl = placemark.querySelector('styleUrl, StyleUrl');
+                        if (styleUrlEl) {
+                            const styleId = styleUrlEl.textContent.replace('#', '');
+                            const styleEl = kmlDoc.querySelector(`Style[id="${styleId}"], style[id="${styleId}"]`);
+                            if (styleEl) {
+                                const colorEl = styleEl.querySelector('PolyStyle color, polystyle color, LineStyle color, linestyle color');
+                                if (colorEl) color = kmlColorToHex(colorEl.textContent);
+                            }
+                        }
+
+                        const polygonLayer = L.polygon(latLngs, {
+                            color: color,
+                            fillColor: color,
+                            fillOpacity: 0.35
+                        });
+
+                        drawnItems.addLayer(polygonLayer);
+                        polygonLayer.regionColor = color;
+
+                        const regionId = 'region-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
+                        const count = countPointsInLayer(polygonLayer);
+
+                        createRegionCard(regionId, name, count, polygonLayer, color);
+                        importedPolygonsCount++;
+                    } 
+                    else if (latLngs.length === 1) {
+                        newMarkers.push(L.marker(latLngs[0]).bindPopup(`<b>${escapeXml(name)}</b>`));
+                    }
+                });
+            });
+
+            if (newMarkers.length > 0) {
+                markersClusterGroup.addLayers(newMarkers);
+            }
+
+            return { polygons: importedPolygonsCount, markers: newMarkers.length };
         }
 
         function kmlColorToHex(kmlColor) {
@@ -485,112 +658,13 @@
             });
         }
 
-        // 10. ZAAWANSOWANA OBSŁUGA KOLEJKOWANIA I MONITOROWANIA POSTĘPU PLIKÓW
-        const fileInput = document.getElementById('fileInput');
-        const fileQueueBox = document.getElementById('fileQueueBox');
-
-        fileInput.addEventListener('change', async function(e) {
-            const files = Array.from(e.target.files);
-            if (files.length === 0) return;
-
-            // Czyszczenie i przygotowanie listy podglądu plików
-            fileQueueBox.innerHTML = '';
-            fileQueueBox.style.display = 'block';
-
-            files.forEach((file, index) => {
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'file-queue-item';
-                itemDiv.id = `file-item-${index}`;
-                itemDiv.innerHTML = `
-                    <span class="file-name" title="${file.name}">${file.name}</span>
-                    <span class="file-status status-waiting" id="file-status-${index}">Oczekuje...</span>
-                `;
-                fileQueueBox.appendChild(itemDiv);
-            });
-
-            let totalPolygons = 0;
-            let totalMarkers = 0;
-
-            updateProgress(0, `Rozpoczynam wgrywanie ${files.length} plików...`);
-
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                const statusBadge = document.getElementById(`file-status-${i}`);
-                
-                // Zmiana statusu na "Przetwarzanie"
-                statusBadge.className = 'file-status status-processing';
-                statusBadge.innerText = 'Wczytywanie...';
-
-                const percent = Math.round(((i) / files.length) * 100);
-                updateProgress(percent, `Przetwarzanie pliku ${i + 1} z ${files.length}`);
-
-                // Krótkie opóźnienie dla wymuszenia prerenderowania przeglądarki
-                await new Promise(r => setTimeout(r, 60));
-
-                try {
-                    const result = await processSingleFile(file);
-                    totalPolygons += result.polygons;
-                    totalMarkers += result.markers;
-
-                    // Sukces
-                    statusBadge.className = 'file-status status-done';
-                    statusBadge.innerText = 'Gotowe ✓';
-                } catch (err) {
-                    console.error("Błąd przetwarzania pliku:", file.name, err);
-                    statusBadge.className = 'file-status status-error';
-                    statusBadge.innerText = 'Błąd ✕';
-                }
-            }
-
-            updateProgress(100, `Gotowe! Łącznie zaimportowano: ${totalPolygons} obszarów, ${totalMarkers} punktów.`);
-
-            // Odświeżenie granic widoku mapy
-            if (drawnItems.getLayers().length > 0) {
-                map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
-            } else if (markersClusterGroup.getLayers().length > 0) {
-                map.fitBounds(markersClusterGroup.getBounds());
-            }
-
-            recalculateAllRegions();
-
-            // Reset pola wyboru pliku, aby można było ponawiać operację z tymi samymi plikami
-            fileInput.value = '';
-        });
-
-        // Przetwarzanie pojedynczego pliku
-        function processSingleFile(file) {
-            return new Promise((resolve, reject) => {
-                const fileName = file.name.toLowerCase();
-
-                if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-                    const reader = new FileReader();
-                    reader.readAsArrayBuffer(file);
-                    reader.onload = function(evt) {
-                        try {
-                            const data = new Uint8Array(evt.target.result);
-                            const workbook = XLSX.read(data, { type: 'array' });
-                            const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                            const count = renderTableData(jsonData);
-                            resolve({ polygons: 0, markers: count });
-                        } catch(e) { reject(e); }
-                    };
-                    reader.onerror = reject;
-                } else if (fileName.endsWith('.csv')) {
-                    Papa.parse(file, {
-                        header: true,
-                        skipEmptyLines: true,
-                        complete: function(results) {
-                            const count = renderTableData(results.data);
-                            resolve({ polygons: 0, markers: count });
-                        },
-                        error: reject
-                    });
-                } else if (fileName.endsWith('.kmz') || fileName.endsWith('.kml')) {
-                    handleKmlKmzFile(file, resolve, reject);
-                } else {
-                    resolve({ polygons: 0, markers: 0 });
-                }
-            });
+        function updateProgress(percent, text) {
+            const container = document.getElementById('progressContainer');
+            const bar = document.getElementById('progressBar');
+            const status = document.getElementById('status');
+            container.style.display = 'block';
+            bar.style.width = percent + '%';
+            status.innerText = text;
         }
 
         function renderTableData(rows) {
@@ -611,134 +685,6 @@
 
             markersClusterGroup.addLayers(newMarkers);
             return newMarkers.length;
-        }
-
-        function handleKmlKmzFile(file, resolve, reject) {
-            const isKmz = file.name.toLowerCase().endsWith('.kmz');
-            const reader = new FileReader();
-
-            if (isKmz) {
-                reader.readAsArrayBuffer(file);
-                reader.onload = function(evt) {
-                    JSZip.loadAsync(evt.target.result).then(zip => {
-                        const kmlFile = Object.keys(zip.files).find(name => name.toLowerCase().endsWith('.kml'));
-                        if (kmlFile) return zip.files[kmlFile].async("string");
-                        else throw new Error("Brak pliku .kml w archiwum .kmz");
-                    }).then(xmlStr => {
-                        const res = parseAndRenderKmlString(xmlStr);
-                        resolve(res);
-                    }).catch(reject);
-                };
-                reader.onerror = reject;
-            } else {
-                reader.readAsText(file);
-                reader.onload = function(evt) {
-                    try {
-                        const res = parseAndRenderKmlString(evt.target.result);
-                        resolve(res);
-                    } catch(e) { reject(e); }
-                };
-                reader.onerror = reject;
-            }
-        }
-
-        function parseAndRenderKmlString(xmlString) {
-            const parser = new DOMParser();
-            const kmlDoc = parser.parseFromString(xmlString, 'text/xml');
-            
-            const placemarks = kmlDoc.getElementsByTagName('Placemark');
-            const newMarkers = [];
-            let importedPolygonsCount = 0;
-
-            for (let i = 0; i < placemarks.length; i++) {
-                const placemark = placemarks[i];
-                const nameEl = placemark.getElementsByTagName('name')[0];
-                const name = nameEl ? nameEl.textContent.trim() : `Rejon zaimportowany ${regionCounter++}`;
-
-                // Wielokąty (Polygon)
-                const polygonEl = placemark.getElementsByTagName('Polygon')[0];
-                if (polygonEl) {
-                    const coordsEl = polygonEl.getElementsByTagName('coordinates')[0];
-                    if (coordsEl) {
-                        const coordsText = coordsEl.textContent.trim();
-                        const rawCoords = coordsText.split(/\s+/);
-                        const latLngs = [];
-
-                        rawCoords.forEach(coordStr => {
-                            const parts = coordStr.split(',');
-                            if (parts.length >= 2) {
-                                const lng = parseFloat(parts[0]);
-                                const lat = parseFloat(parts[1]);
-                                if (!isNaN(lat) && !isNaN(lng)) latLngs.push([lat, lng]);
-                            }
-                        });
-
-                        if (latLngs.length >= 3) {
-                            let color = "#3388ff";
-                            const styleUrlEl = placemark.getElementsByTagName('styleUrl')[0];
-                            if (styleUrlEl) {
-                                const styleId = styleUrlEl.textContent.replace('#', '');
-                                const styles = kmlDoc.getElementsByTagName('Style');
-                                for (let s = 0; s < styles.length; s++) {
-                                    if (styles[s].getAttribute('id') === styleId) {
-                                        const polyStyle = styles[s].getElementsByTagName('PolyStyle')[0];
-                                        if (polyStyle) {
-                                            const colorEl = polyStyle.getElementsByTagName('color')[0];
-                                            if (colorEl) color = kmlColorToHex(colorEl.textContent);
-                                        }
-                                    }
-                                }
-                            }
-
-                            const polygonLayer = L.polygon(latLngs, {
-                                color: color,
-                                fillColor: color,
-                                fillOpacity: 0.35
-                            });
-
-                            drawnItems.addLayer(polygonLayer);
-                            polygonLayer.regionColor = color;
-
-                            const regionId = 'region-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
-                            const count = countPointsInLayer(polygonLayer);
-
-                            createRegionCard(regionId, name, count, polygonLayer, color);
-                            importedPolygonsCount++;
-                        }
-                    }
-                }
-
-                // Punkty (Point)
-                const pointEl = placemark.getElementsByTagName('Point')[0];
-                if (pointEl) {
-                    const coordsEl = pointEl.getElementsByTagName('coordinates')[0];
-                    if (coordsEl) {
-                        const parts = coordsEl.textContent.trim().split(',');
-                        if (parts.length >= 2) {
-                            const lng = parseFloat(parts[0]);
-                            const lat = parseFloat(parts[1]);
-                            if (!isNaN(lat) && !isNaN(lng)) {
-                                newMarkers.push(L.marker([lat, lng]).bindPopup(`<b>${escapeXml(name)}</b>`));
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (newMarkers.length > 0) {
-                markersClusterGroup.addLayers(newMarkers);
-            }
-
-            return { polygons: importedPolygonsCount, markers: newMarkers.length };
-        }
-
-        function updateProgress(percent, text) {
-            const container = document.getElementById('progressContainer');
-            const bar = document.getElementById('progressBar');
-            const status = document.getElementById('status');
-            container.style.display = 'block';
-            bar.style.width = percent + '%';
-            status.innerText = text;
         }
     </script>
 </body>
