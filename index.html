@@ -29,55 +29,26 @@
             box-shadow: 2px 0 8px rgba(0,0,0,0.1);
         }
 
-        .sidebar-header {
-            padding: 15px;
-            background: #2c3e50;
-            color: white;
-        }
+        .sidebar-header { padding: 15px; background: #2c3e50; color: white; }
         .sidebar-header h3 { margin: 0 0 10px 0; font-size: 16px; }
 
-        .file-upload-box {
-            background: #34495e;
-            padding: 12px;
-            border-radius: 6px;
-        }
+        .file-upload-box { background: #34495e; padding: 12px; border-radius: 6px; }
         .file-upload-box input[type="file"] { width: 100%; color: white; font-size: 12px; cursor: pointer; }
 
         .btn-process {
-            width: 100%;
-            margin-top: 10px;
-            padding: 10px;
-            background: #3498db;
-            color: white;
-            font-weight: bold;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
-            transition: background 0.2s;
-            display: block;
+            width: 100%; margin-top: 10px; padding: 10px; background: #3498db;
+            color: white; font-weight: bold; border: none; border-radius: 4px;
+            cursor: pointer; font-size: 13px; transition: background 0.2s; display: block;
         }
         .btn-process:hover { background: #2980b9; }
         .btn-process:disabled { background: #7f8c8d; cursor: not-allowed; }
 
         #fileQueueBox {
-            margin-top: 10px;
-            background: #1a252f;
-            border-radius: 4px;
-            padding: 8px;
-            max-height: 180px;
-            overflow-y: auto;
-            display: none;
+            margin-top: 10px; background: #1a252f; border-radius: 4px;
+            padding: 8px; max-height: 180px; overflow-y: auto; display: none;
         }
 
-        .file-queue-item {
-            display: flex;
-            flex-direction: column;
-            font-size: 11px;
-            color: #ecf0f1;
-            padding: 6px 0;
-            border-bottom: 1px solid #3e5871;
-        }
+        .file-queue-item { display: flex; flex-direction: column; font-size: 11px; color: #ecf0f1; padding: 6px 0; border-bottom: 1px solid #3e5871; }
         .file-queue-item:last-child { border-bottom: none; }
         .file-header { display: flex; justify-content: space-between; align-items: center; }
         .file-name { font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
@@ -91,35 +62,32 @@
         .file-detail { font-size: 10px; color: #bdc3c7; margin-top: 3px; word-break: break-all; }
 
         .actions-bar {
-            padding: 10px 15px;
-            background: #e9ecef;
-            border-bottom: 1px solid #dee2e6;
+            padding: 10px 15px; background: #e9ecef; border-bottom: 1px solid #dee2e6;
+            display: flex; flex-direction: column; gap: 8px;
         }
 
-        .btn-export-kml {
-            width: 100%;
-            background: #27ae60;
-            color: white;
-            font-weight: bold;
-            padding: 8px 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
+        .btn-action {
+            width: 100%; font-weight: bold; padding: 8px 12px; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 13px;
         }
+        .btn-export-kml { background: #27ae60; color: white; }
         .btn-export-kml:hover { background: #219653; }
+
+        .btn-edit-toggle { background: #f39c12; color: white; }
+        .btn-edit-toggle:hover { background: #d35400; }
+
+        .btn-save-toggle { background: #2980b9; color: white; display: none; }
+        .btn-save-toggle:hover { background: #1c5980; }
 
         #regionsList { flex: 1; overflow-y: auto; padding: 15px; }
 
         .region-card {
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 12px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            border-left: 5px solid #3388ff;
+            background: white; border: 1px solid #e0e0e0; border-radius: 8px;
+            padding: 12px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-left: 5px solid #3388ff; cursor: pointer; transition: all 0.2s ease;
         }
+        .region-card:hover { border-color: #aaa; }
+        .region-card.selected { box-shadow: 0 0 0 2px #e67e22; background: #fffdf9; }
 
         .region-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .region-title-input { font-weight: bold; border: 1px solid transparent; padding: 4px 6px; border-radius: 4px; width: 100%; font-size: 14px; }
@@ -153,7 +121,9 @@
         </div>
 
         <div class="actions-bar">
-            <button id="exportKmlBtn" class="btn-export-kml">📥 Eksportuj rejony do KML</button>
+            <button id="toggleEditBtn" class="btn-action btn-edit-toggle">✏️ Edytuj wszystkie rejony</button>
+            <button id="saveEditBtn" class="btn-action btn-save-toggle">💾 Zapisz edycję</button>
+            <button id="exportKmlBtn" class="btn-action btn-export-kml">📥 Eksportuj rejony do KML</button>
         </div>
 
         <div style="padding: 10px 15px 0 15px; font-size: 13px; font-weight: bold; color: #6c757d;">
@@ -191,7 +161,7 @@
         map.addLayer(drawnItems);
 
         const drawControl = new L.Control.Draw({
-            edit: { featureGroup: drawnItems },
+            edit: false,
             draw: {
                 polygon: { allowIntersection: false, showArea: true },
                 rectangle: true,
@@ -199,6 +169,89 @@
             }
         });
         map.addControl(drawControl);
+
+        let selectedLayer = null;
+        let isEditing = false;
+        const toggleEditBtn = document.getElementById('toggleEditBtn');
+        const saveEditBtn = document.getElementById('saveEditBtn');
+
+        // Funkcja do zaznaczania wybranego rejonu
+        function selectRegion(layer) {
+            if (isEditing) saveCurrentEdits();
+
+            if (selectedLayer) {
+                selectedLayer.setStyle({ weight: 3, dashArray: null });
+                const prevCard = document.getElementById(selectedLayer.regionId);
+                if (prevCard) prevCard.classList.remove('selected');
+            }
+
+            selectedLayer = layer;
+
+            if (selectedLayer) {
+                selectedLayer.setStyle({ weight: 6, dashArray: '6, 6' });
+                const card = document.getElementById(selectedLayer.regionId);
+                if (card) {
+                    card.classList.add('selected');
+                    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                toggleEditBtn.innerText = '✏️ Edytuj zaznaczony rejon';
+            } else {
+                toggleEditBtn.innerText = '✏️ Edytuj wszystkie rejony';
+            }
+        }
+
+        // Obsługa włączania edycji (dla jednego lub wszystkich)
+        toggleEditBtn.addEventListener('click', () => {
+            if (drawnItems.getLayers().length === 0) {
+                alert('Brak rejonów do edycji!');
+                return;
+            }
+
+            isEditing = true;
+            toggleEditBtn.style.display = 'none';
+            saveEditBtn.style.display = 'block';
+
+            if (selectedLayer) {
+                // Tryb edycji TYLKO ZAZNACZONEGO rejonu
+                selectedLayer.editing.enable();
+            } else {
+                // Tryb edycji WSZYSTKICH rejonów
+                drawnItems.eachLayer(layer => {
+                    if (layer.editing) layer.editing.enable();
+                });
+            }
+        });
+
+        // Zapisywanie edycji
+        saveEditBtn.addEventListener('click', saveCurrentEdits);
+
+        function saveCurrentEdits() {
+            if (!isEditing) return;
+
+            if (selectedLayer) {
+                if (selectedLayer.editing) selectedLayer.editing.disable();
+                updateRegionPointCount(selectedLayer);
+            } else {
+                drawnItems.eachLayer(layer => {
+                    if (layer.editing) layer.editing.disable();
+                    updateRegionPointCount(layer);
+                });
+            }
+
+            isEditing = false;
+            saveEditBtn.style.display = 'none';
+            toggleEditBtn.style.display = 'block';
+        }
+
+        function updateRegionPointCount(layer) {
+            if (layer.regionId) {
+                const newCount = countPointsInLayer(layer);
+                const card = document.getElementById(layer.regionId);
+                if (card) {
+                    card.querySelector('.point-count').innerText = newCount;
+                }
+            }
+        }
 
         // Tymczasowy znacznik wyszukiwania adresów
         let searchMarker = null;
@@ -225,22 +278,23 @@
             ]);
             map.fitBounds(poly.getBounds());
 
-            // Utworzenie tymczasowego markera
             searchMarker = L.marker(e.geocode.center)
                 .bindPopup(`<b>${escapeXml(e.geocode.name)}</b>`)
                 .addTo(map)
                 .openPopup();
 
-            // Usunięcie markera przy zamknięciu popupu
             searchMarker.on('popupclose', function() {
                 clearSearchMarker();
             });
         })
         .addTo(map);
 
-        // Usunięcie tymczasowego markera przy kliknięciu gdziekolwiek na mapie
-        map.on('click', function() {
+        map.on('click', function(e) {
             clearSearchMarker();
+            // Odznaczenie rejonu przy kliknięciu w tło mapy
+            if (e.originalEvent.target.classList.contains('leaflet-container')) {
+                selectRegion(null);
+            }
         });
 
         const markersClusterGroup = L.markerClusterGroup({ chunkedLoading: true });
@@ -254,39 +308,25 @@
 
             if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
                 const defaultColor = "#3388ff";
-                layer.setStyle({ color: defaultColor, fillColor: defaultColor, fillOpacity: 0.35 });
+                layer.setStyle({ color: defaultColor, fillColor: defaultColor, fillOpacity: 0.35, weight: 3 });
 
                 const regionId = 'region-' + Date.now();
                 const regionName = `Rejon ${regionCounter++}`;
                 layer.regionColor = defaultColor;
                 
+                attachLayerEvents(layer);
                 const count = countPointsInLayer(layer);
                 createRegionCard(regionId, regionName, count, layer, defaultColor);
+                selectRegion(layer);
             }
         });
 
-        map.on(L.Draw.Event.EDITED, function (e) {
-            const layers = e.layers;
-            layers.eachLayer(function (layer) {
-                if (layer.regionId) {
-                    const newCount = countPointsInLayer(layer);
-                    const card = document.getElementById(layer.regionId);
-                    if (card) {
-                        card.querySelector('.point-count').innerText = newCount;
-                    }
-                }
+        function attachLayerEvents(layer) {
+            layer.on('click', function (e) {
+                L.DomEvent.stopPropagation(e);
+                selectRegion(layer);
             });
-        });
-
-        map.on(L.Draw.Event.DELETED, function (e) {
-            const layers = e.layers;
-            layers.eachLayer(function (layer) {
-                if (layer.regionId) {
-                    const card = document.getElementById(layer.regionId);
-                    if (card) card.remove();
-                }
-            });
-        });
+        }
 
         const fileInput = document.getElementById('fileInput');
         const processFilesBtn = document.getElementById('processFilesBtn');
@@ -500,11 +540,14 @@
                         const polygonLayer = L.polygon(latLngs, {
                             color: polyColor,
                             fillColor: polyColor,
-                            fillOpacity: 0.4
+                            fillOpacity: 0.4,
+                            weight: 3
                         });
 
                         drawnItems.addLayer(polygonLayer);
                         polygonLayer.regionColor = polyColor;
+
+                        attachLayerEvents(polygonLayer);
 
                         const regionId = 'region-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
                         const count = countPointsInLayer(polygonLayer);
@@ -626,19 +669,31 @@
                 </div>
             `;
 
+            card.addEventListener('click', (evt) => {
+                if (!evt.target.classList.contains('region-title-input') && 
+                    !evt.target.classList.contains('color-picker') && 
+                    !evt.target.classList.contains('btn-delete')) {
+                    selectRegion(layer);
+                }
+            });
+
             const colorPicker = card.querySelector('.color-picker');
             colorPicker.addEventListener('input', (evt) => {
                 const newColor = evt.target.value;
                 layer.regionColor = newColor;
-                layer.setStyle({ color: newColor, fillColor: newColor, fillOpacity: 0.4 });
+                layer.setStyle({ color: newColor, fillColor: newColor });
                 card.style.borderLeftColor = newColor;
             });
 
-            card.querySelector('.btn-zoom').addEventListener('click', () => {
+            card.querySelector('.btn-zoom').addEventListener('click', (e) => {
+                e.stopPropagation();
                 map.fitBounds(layer.getBounds(), { padding: [30, 30] });
+                selectRegion(layer);
             });
 
-            card.querySelector('.btn-delete').addEventListener('click', () => {
+            card.querySelector('.btn-delete').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (selectedLayer === layer) selectRegion(null);
                 drawnItems.removeLayer(layer);
                 card.remove();
             });
