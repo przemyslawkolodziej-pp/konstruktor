@@ -79,6 +79,16 @@
         }
         .btn-filter-unassigned:hover { background: #533f03; }
 
+        /* Sekcja wyboru miesiąca i dni roboczych */
+        .workdays-bar {
+            background: #e8f4f8; padding: 6px 10px; border-bottom: 1px solid #d0e1e9;
+            display: flex; justify-content: space-between; align-items: center; font-size: 11px;
+        }
+        .workdays-bar select {
+            padding: 2px 4px; font-size: 11px; border: 1px solid #ced4da; border-radius: 3px; background: white;
+        }
+        .workdays-info { font-weight: bold; color: #2c3e50; font-size: 10px; }
+
         .actions-bar {
             padding: 8px 12px; background: #e9ecef; border-bottom: 1px solid #dee2e6;
             display: flex; flex-direction: column; gap: 5px;
@@ -119,7 +129,7 @@
         .region-title-input { font-weight: bold; border: 1px solid transparent; padding: 1px 3px; border-radius: 3px; width: 100%; font-size: 11px; }
         .region-title-input:hover, .region-title-input:focus { border-color: #ccc; background: #fff; }
         
-        .region-stats { font-size: 10px; color: #555; margin-bottom: 3px; background: #f1f3f5; padding: 2px 4px; border-radius: 3px; display: flex; justify-content: space-between; }
+        .region-stats { font-size: 10px; color: #555; margin-bottom: 3px; background: #f1f3f5; padding: 2px 4px; border-radius: 3px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2px; }
         .region-controls { display: flex; gap: 4px; align-items: center; }
         .color-picker-wrapper { display: flex; align-items: center; gap: 2px; font-size: 10px; color: #666; }
         .color-picker { border: none; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: none; padding: 0; }
@@ -163,6 +173,17 @@
         <div class="unassigned-bar">
             <span>Punktów nieprzypisanych: <b id="unassignedCount">0</b></span>
             <button id="toggleUnassignedBtn" class="btn-filter-unassigned">Pokaż tylko nieprzypisane</button>
+        </div>
+
+        <!-- Sekcja wyboru miesiąca i obliczania dni roboczych -->
+        <div class="workdays-bar">
+            <div>
+                <select id="monthSelect"></select>
+                <select id="yearSelect"></select>
+            </div>
+            <div class="workdays-info">
+                Dni robocze: <span id="workdaysCount">0</span>
+            </div>
         </div>
 
         <div class="actions-bar">
@@ -227,6 +248,119 @@
         const saveEditBtn = document.getElementById('saveEditBtn');
         const processedFilesSet = new Set();
         let allMarkers = [];
+
+        // Logika obliczania dni roboczych (z uwzględnieniem polskich dni wolnych)
+        function getEasterSunday(year) {
+            const a = year % 19;
+            const b = Math.floor(year / 100);
+            const c = year % 100;
+            const d = Math.floor(b / 4);
+            const e = b % 4;
+            const f = Math.floor((b + 8) / 25);
+            const g = Math.floor((b - f + 1) / 3);
+            const h = (19 * a + b - d - g + 15) % 30;
+            const i = Math.floor(c / 4);
+            const k = c % 4;
+            const l = (32 + 2 * e + 2 * i - h - k) % 7;
+            const m = Math.floor((a + 11 * h + 22 * l) / 451);
+            const month = Math.floor((h + l - 7 * m + 114) / 31);
+            const day = ((h + l - 7 * m + 114) % 31) + 1;
+            return new Date(year, month - 1, day);
+        }
+
+        function getPolishHolidays(year) {
+            const holidays = [
+                `${year}-01-01`, // Nowy Rok
+                `${year}-01-06`, // Trzech Króli
+                `${year}-05-01`, // Święto Pracy
+                `${year}-05-03`, // Święto Konstytucji
+                `${year}-08-15`, // Wniebowzięcie NMP
+                `${year}-11-01`, // Wszystkich Świętych
+                `${year}-11-11`, // Święto Niepodległości
+                `${year}-12-25`, // Boże Narodzenie
+                `${year}-12-26`  // Drugi Dzień Bożego Narodzenia
+            ];
+
+            const easter = getEasterSunday(year);
+            const easterMonday = new Date(easter);
+            easterMonday.setDate(easter.getDate() + 1);
+            
+            const corpusChristi = new Date(easter);
+            corpusChristi.setDate(easter.getDate() + 60);
+
+            const formatDate = (d) => {
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${d.getFullYear()}-${m}-${day}`;
+            };
+
+            holidays.push(formatDate(easterMonday));
+            holidays.push(formatDate(corpusChristi));
+
+            return holidays;
+        }
+
+        function getWorkingDaysCount(year, month) {
+            const holidays = getPolishHolidays(year);
+            const daysInMonth = new Date(year, month, 0).getDate();
+            let count = 0;
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month - 1, day);
+                const dayOfWeek = date.getDay();
+                const mStr = String(month).padStart(2, '0');
+                const dStr = String(day).padStart(2, '0');
+                const dateString = `${year}-${mStr}-${dStr}`;
+
+                if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidays.includes(dateString)) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        // Inicjalizacja kontrolek wyboru miesiąca/roku
+        const monthSelect = document.getElementById('monthSelect');
+        const yearSelect = document.getElementById('yearSelect');
+        const workdaysCountEl = document.getElementById('workdaysCount');
+
+        const monthNames = [
+            'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
+            'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'
+        ];
+
+        monthNames.forEach((name, idx) => {
+            const opt = document.createElement('option');
+            opt.value = idx + 1;
+            opt.innerText = name;
+            monthSelect.appendChild(opt);
+        });
+
+        const currentYear = new Date().getFullYear();
+        const startYear = 2026;
+        const endYear = Math.max(startYear + 5, currentYear + 2);
+
+        for (let y = startYear; y <= endYear; y++) {
+            const opt = document.createElement('option');
+            opt.value = y;
+            opt.innerText = y;
+            yearSelect.appendChild(opt);
+        }
+
+        const now = new Date();
+        monthSelect.value = now.getFullYear() >= startYear ? now.getMonth() + 1 : 1;
+        yearSelect.value = now.getFullYear() >= startYear ? now.getFullYear() : startYear;
+
+        function updateWorkdaysDisplay() {
+            const selectedMonth = parseInt(monthSelect.value);
+            const selectedYear = parseInt(yearSelect.value);
+            const workdays = getWorkingDaysCount(selectedYear, selectedMonth);
+            workdaysCountEl.innerText = workdays;
+            recalculateAllStats();
+        }
+
+        monthSelect.addEventListener('change', updateWorkdaysDisplay);
+        yearSelect.addEventListener('change', updateWorkdaysDisplay);
 
         function createInteractiveMarker(lat, lng, title) {
             const marker = L.marker([lat, lng], { draggable: true });
@@ -803,12 +937,21 @@
                 if (!isInsideAny) unassignedCount++;
             });
 
+            const workdays = parseInt(workdaysCountEl.innerText) || 0;
+
             const cards = document.querySelectorAll('.region-card');
             cards.forEach(card => {
                 const name = card.getAttribute('data-region-name');
                 const pointCountEl = card.querySelector('.point-count');
+                const pointPerDayEl = card.querySelector('.point-per-day');
+
+                const count = countsByName[name] || 0;
                 if (pointCountEl) {
-                    pointCountEl.innerText = countsByName[name] || 0;
+                    pointCountEl.innerText = count;
+                }
+                if (pointPerDayEl) {
+                    const perDay = workdays > 0 ? Math.round(count / workdays) : 0;
+                    pointPerDayEl.innerText = perDay;
                 }
 
                 let hasOverlap = false;
@@ -907,8 +1050,9 @@
                     <input type="text" class="region-title-input" value="${escapeXml(name)}">
                 </div>
                 <div class="region-stats">
-                    <span>📍 Punktów: <b class="point-count">0</b></span>
-                    <span style="font-size: 9px; color: #888;">Obszarów: ${groupLayers.length}</span>
+                    <span>📍 Suma: <b class="point-count">0</b></span>
+                    <span>📅 Na dzień: <b class="point-per-day">0</b></span>
+                    <span style="font-size: 9px; color: #888; flex-basis: 100%;">Obszarów: ${groupLayers.length}</span>
                 </div>
                 <div class="overlap-badge">⚠️ Rejon nachodzi na inny!</div>
                 <div class="region-controls">
@@ -984,11 +1128,21 @@
                 }
             });
             localStorage.setItem('saved_map_regions', JSON.stringify(dataToSave));
+            localStorage.setItem('saved_map_month', monthSelect.value);
+            localStorage.setItem('saved_map_year', yearSelect.value);
         }
 
         function loadFromLocalStorage() {
+            const rawMonth = localStorage.getItem('saved_map_month');
+            const rawYear = localStorage.getItem('saved_map_year');
+            if (rawMonth) monthSelect.value = rawMonth;
+            if (rawYear) yearSelect.value = rawYear;
+
             const raw = localStorage.getItem('saved_map_regions');
-            if (!raw) return;
+            if (!raw) {
+                updateWorkdaysDisplay();
+                return;
+            }
 
             try {
                 const regions = JSON.parse(raw);
@@ -1008,17 +1162,20 @@
 
                 if (regions.length > 0) {
                     rebuildRegionsListUI();
-                    recalculateAllStats();
                     map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
                 }
             } catch (err) {
                 console.error("Błąd wczytywania z localStorage:", err);
             }
+
+            updateWorkdaysDisplay();
         }
 
         document.getElementById('resetStorageBtn').addEventListener('click', () => {
             if (confirm('Czy na pewno chcesz wyczyścić wszystkie punkty na mapie oraz narysowane rejony? Ta operacja jest nieodwracalna.')) {
                 localStorage.removeItem('saved_map_regions');
+                localStorage.removeItem('saved_map_month');
+                localStorage.removeItem('saved_map_year');
                 drawnItems.clearLayers();
                 markersClusterGroup.clearLayers();
                 allMarkers = [];
@@ -1050,13 +1207,17 @@
                 if (!groups[name]) groups[name] = 0;
             });
 
+            const workdays = parseInt(workdaysCountEl.innerText) || 0;
+
             const exportData = Object.keys(groups).map(name => {
                 const card = document.querySelector(`.region-card[data-region-name="${CSS.escape(name)}"]`);
                 const pointCount = card ? parseInt(card.querySelector('.point-count').innerText) || 0 : 0;
+                const pointPerDay = workdays > 0 ? Math.round(pointCount / workdays) : 0;
 
                 return {
                     "Nazwa rejonu": name,
-                    "Liczba punktów": pointCount
+                    "Liczba punktów (suma)": pointCount,
+                    "Liczba punktów na dzień": pointPerDay
                 };
             });
 
