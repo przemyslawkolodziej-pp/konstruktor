@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa Rejonów - Edycja i Przeliczanie na Żywo</title>
+    <title>Mapa Rejonów - Import i Edycja Rejonów KML</title>
     
     <!-- Leaflet & Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -41,6 +41,28 @@
             border-radius: 6px;
         }
         .file-upload-box input { width: 100%; color: white; font-size: 12px; }
+
+        .actions-bar {
+            padding: 10px 15px;
+            background: #e9ecef;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-export-kml {
+            width: 100%;
+            background: #27ae60;
+            color: white;
+            font-weight: bold;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        .btn-export-kml:hover { background: #219653; }
 
         /* Lista Rejonów */
         #regionsList {
@@ -139,7 +161,7 @@
     <!-- LEWY PANEL BOCZNY -->
     <div id="sidebar">
         <div class="sidebar-header">
-            <h3>Wczytaj Plik Adresowy</h3>
+            <h3>Wczytaj Plik (XLSX, CSV, KML, KMZ)</h3>
             <div class="file-upload-box">
                 <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.kml,.kmz">
                 <div id="progressContainer" class="progress-container">
@@ -149,13 +171,17 @@
             </div>
         </div>
 
+        <div class="actions-bar">
+            <button id="exportKmlBtn" class="btn-export-kml">📥 Eksportuj rejony do KML</button>
+        </div>
+
         <div style="padding: 10px 15px 0 15px; font-size: 13px; font-weight: bold; color: #6c757d;">
-            NARYSOWANE REJONY:
+            NARYSOWANE / WDAWANE REJONY:
         </div>
 
         <div id="regionsList">
             <div id="emptyInfo" style="text-align: center; color: #adb5bd; margin-top: 30px; font-size: 13px;">
-                Użyj narzędzi po lewej stronie mapy, aby narysować obszar.
+                Brak narysowanych rejonów. Narysuj obszar na mapie lub wczytaj plik KML/KMZ.
             </div>
         </div>
     </div>
@@ -182,7 +208,7 @@
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        // 2. Grupa dla rysowanych obszarów
+        // 2. Grupa dla rysowanych/edytowalnych obszarów
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
 
@@ -200,13 +226,13 @@
         });
         map.addControl(drawControl);
 
-        // 4. Klastrowanie punktów (Wydajność przy 20k punktach)
+        // 4. Klastrowanie punktów adresowych
         const markersClusterGroup = L.markerClusterGroup({ chunkedLoading: true });
         map.addLayer(markersClusterGroup);
 
         let regionCounter = 1;
 
-        // 5. OBSŁUGA TWORZENIA NOWEGO REJONU
+        // 5. OBSŁUGA TWORZENIA NOWEGO REJONU (RĘCZNIE)
         map.on(L.Draw.Event.CREATED, function (e) {
             const layer = e.layer;
             drawnItems.addLayer(layer);
@@ -217,19 +243,16 @@
 
                 const regionId = 'region-' + Date.now();
                 const regionName = `Rejon ${regionCounter++}`;
+                layer.regionColor = defaultColor;
                 
-                // Liczenie punktów
                 const count = countPointsInLayer(layer);
-
-                // Tworzenie karty w panelu bocznym
                 createRegionCard(regionId, regionName, count, layer, defaultColor);
             }
         });
 
         // 6. OBSŁUGA PRZELICZANIA NA ŻYWO PODCZAS EDYCJI NAROŻNIKÓW
         map.on(L.Draw.Event.EDITMOVE, function (e) {
-            const layer = e.layer;
-            updateRegionCount(layer);
+            updateRegionCount(e.layer);
         });
 
         map.on(L.Draw.Event.EDITED, function (e) {
@@ -238,7 +261,6 @@
             });
         });
 
-        // Usuwanie obiektów z narzędzia Leaflet Draw
         map.on(L.Draw.DELETED, function (e) {
             e.layers.eachLayer(function (layer) {
                 if (layer.regionId) {
@@ -249,7 +271,6 @@
             checkEmptyInfo();
         });
 
-        // Funkcja pomocnicza odświeżająca wynik
         function updateRegionCount(layer) {
             if (layer.regionId) {
                 const count = countPointsInLayer(layer);
@@ -287,16 +308,15 @@
                 </div>
             `;
 
-            // Zmiana nazwy
             const nameInput = card.querySelector('.region-title-input');
             nameInput.addEventListener('change', (evt) => {
                 layer.bindPopup(`<b>${evt.target.value}</b><br>Punkty: ${countPointsInLayer(layer)}`);
             });
 
-            // Zmiana koloru z zachowaniem przezroczystości 0.35
             const colorPicker = card.querySelector('.color-picker');
             colorPicker.addEventListener('input', (evt) => {
                 const newColor = evt.target.value;
+                layer.regionColor = newColor;
                 layer.setStyle({
                     color: newColor,
                     fillColor: newColor,
@@ -305,12 +325,10 @@
                 card.style.borderLeftColor = newColor;
             });
 
-            // Przybliżanie do rejonu
             card.querySelector('.btn-zoom').addEventListener('click', () => {
                 map.fitBounds(layer.getBounds(), { padding: [30, 30] });
             });
 
-            // Usuwanie rejonu
             card.querySelector('.btn-delete').addEventListener('click', () => {
                 drawnItems.removeLayer(layer);
                 card.remove();
@@ -351,7 +369,111 @@
             }
         }
 
-        // 9. OBSŁUGA PLIKÓW (XLSX, CSV, KML, KMZ)
+        // 9. GENEROWANIE I EKSPORT PLIKU KML
+        document.getElementById('exportKmlBtn').addEventListener('click', function() {
+            const layers = drawnItems.getLayers();
+            if (layers.length === 0) {
+                alert("Najpierw narysuj lub wczytaj co najmniej jeden obszar na mapie!");
+                return;
+            }
+
+            let kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Wyeksportowane Rejony</name>\n`;
+
+            layers.forEach((layer, index) => {
+                if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+                    const card = document.getElementById(layer.regionId);
+                    const name = card ? card.querySelector('.region-title-input').value : `Rejon ${index + 1}`;
+                    const count = countPointsInLayer(layer);
+                    const hexColor = layer.regionColor || "#3388ff";
+
+                    const kmlColor = hexToKmlColor(hexColor, "59");
+                    const kmlLineColor = hexToKmlColor(hexColor, "ff");
+
+                    const latLngs = layer.getLatLngs()[0];
+                    let coordsString = "";
+                    latLngs.forEach(ll => {
+                        coordsString += `${ll.lng},${ll.lat},0 `;
+                    });
+                    coordsString += `${latLngs[0].lng},${latLngs[0].lat},0`;
+
+                    kmlContent += `    <Style id="style_${layer.regionId}">
+      <LineStyle>
+        <color>${kmlLineColor}</color>
+        <width>2</width>
+      </LineStyle>
+      <PolyStyle>
+        <color>${kmlColor}</color>
+      </PolyStyle>
+    </Style>
+    <Placemark>
+      <name>${escapeXml(name)}</name>
+      <description>Liczba punktów w obszarze: ${count}</description>
+      <styleUrl>#style_${layer.regionId}</styleUrl>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>${coordsString}</coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>\n`;
+                }
+            });
+
+            kmlContent += `  </Document>\n</kml>`;
+
+            const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rejony_${new Date().toISOString().slice(0,10)}.kml`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        function hexToKmlColor(hex, alphaHex) {
+            hex = hex.replace('#', '');
+            if(hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+            const r = hex.substring(0, 2);
+            const g = hex.substring(2, 4);
+            const b = hex.substring(4, 6);
+            return `${alphaHex}${b}${g}${r}`;
+        }
+
+        function kmlColorToHex(kmlColor) {
+            if (!kmlColor || kmlColor.length < 6) return "#3388ff";
+            const cleanColor = kmlColor.trim();
+            let b, g, r;
+            if (cleanColor.length === 8) {
+                b = cleanColor.substring(2, 4);
+                g = cleanColor.substring(4, 6);
+                r = cleanColor.substring(6, 8);
+            } else {
+                b = cleanColor.substring(0, 2);
+                g = cleanColor.substring(2, 4);
+                r = cleanColor.substring(4, 6);
+            }
+            return `#${r}${g}${b}`;
+        }
+
+        function escapeXml(unsafe) {
+            return unsafe.replace(/[<>&'"]/g, function (c) {
+                switch (c) {
+                    case '<': return '&lt;';
+                    case '>': return '&gt;';
+                    case '&': return '&amp;';
+                    case '\'': return '&apos;';
+                    case '"': return '&quot;';
+                }
+            });
+        }
+
+        // 10. OBSŁUGA IMPORTU PLIKÓW (XLSX, CSV, KML, KMZ)
         document.getElementById('fileInput').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -359,9 +481,8 @@
             const fileName = file.name.toLowerCase();
             updateProgress(10, "Wgrywanie pliku...");
 
-            markersClusterGroup.clearLayers();
-
             if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                markersClusterGroup.clearLayers();
                 const reader = new FileReader();
                 reader.readAsArrayBuffer(file);
                 reader.onload = function(evt) {
@@ -374,6 +495,7 @@
                     }, 50);
                 };
             } else if (fileName.endsWith('.csv')) {
+                markersClusterGroup.clearLayers();
                 Papa.parse(file, {
                     header: true,
                     skipEmptyLines: true,
@@ -431,19 +553,110 @@
             }
         }
 
+        // PARSOWANIE PLIKU KML (PUNKTY ORAZ POLIGONY)
         function parseAndRenderKml(xmlString) {
             const parser = new DOMParser();
             const kmlDoc = parser.parseFromString(xmlString, 'text/xml');
-            const track = new L.KML(kmlDoc);
             
+            const placemarks = kmlDoc.getElementsByTagName('Placemark');
             const newMarkers = [];
-            track.eachLayer(l => {
-                if (l instanceof L.Marker) newMarkers.push(l);
-            });
+            let importedPolygonsCount = 0;
 
-            markersClusterGroup.addLayers(newMarkers);
-            if (newMarkers.length > 0) map.fitBounds(markersClusterGroup.getBounds());
-            updateProgress(100, "Wczytano plik KML/KMZ.");
+            for (let i = 0; i < placemarks.length; i++) {
+                const placemark = placemarks[i];
+                const nameEl = placemark.getElementsByTagName('name')[0];
+                const name = nameEl ? nameEl.textContent.trim() : `Rejon zaimportowany ${regionCounter++}`;
+
+                // 1. Sprawdzamy czy Placemark to Wielokąt (Polygon)
+                const polygonEl = placemark.getElementsByTagName('Polygon')[0];
+                if (polygonEl) {
+                    const coordsEl = polygonEl.getElementsByTagName('coordinates')[0];
+                    if (coordsEl) {
+                        const coordsText = coordsEl.textContent.trim();
+                        const rawCoords = coordsText.split(/\s+/);
+                        const latLngs = [];
+
+                        rawCoords.forEach(coordStr => {
+                            const parts = coordStr.split(',');
+                            if (parts.length >= 2) {
+                                const lng = parseFloat(parts[0]);
+                                const lat = parseFloat(parts[1]);
+                                if (!isNaN(lat) && !isNaN(lng)) {
+                                    latLngs.push([lat, lng]);
+                                }
+                            }
+                        });
+
+                        if (latLngs.length >= 3) {
+                            // Próba odczytania koloru z KML
+                            let color = "#3388ff";
+                            const styleUrlEl = placemark.getElementsByTagName('styleUrl')[0];
+                            if (styleUrlEl) {
+                                const styleId = styleUrlEl.textContent.replace('#', '');
+                                const styles = kmlDoc.getElementsByTagName('Style');
+                                for (let s = 0; s < styles.length; s++) {
+                                    if (styles[s].getAttribute('id') === styleId) {
+                                        const polyStyle = styles[s].getElementsByTagName('PolyStyle')[0];
+                                        if (polyStyle) {
+                                            const colorEl = polyStyle.getElementsByTagName('color')[0];
+                                            if (colorEl) color = kmlColorToHex(colorEl.textContent);
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Tworzenie edytowalnej warstwy Poligonu
+                            const polygonLayer = L.polygon(latLngs, {
+                                color: color,
+                                fillColor: color,
+                                fillOpacity: 0.35
+                            });
+
+                            // Dodanie poligonu do grupy edycyjnej
+                            drawnItems.addLayer(polygonLayer);
+                            polygonLayer.regionColor = color;
+
+                            const regionId = 'region-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4);
+                            const count = countPointsInLayer(polygonLayer);
+
+                            // Dodanie karty do panelu bocznym
+                            createRegionCard(regionId, name, count, polygonLayer, color);
+                            importedPolygonsCount++;
+                        }
+                    }
+                }
+
+                // 2. Sprawdzamy czy Placemark to Punkt (Point)
+                const pointEl = placemark.getElementsByTagName('Point')[0];
+                if (pointEl) {
+                    const coordsEl = pointEl.getElementsByTagName('coordinates')[0];
+                    if (coordsEl) {
+                        const parts = coordsEl.textContent.trim().split(',');
+                        if (parts.length >= 2) {
+                            const lng = parseFloat(parts[0]);
+                            const lat = parseFloat(parts[1]);
+                            if (!isNaN(lat) && !isNaN(lng)) {
+                                const marker = L.marker([lat, lng]).bindPopup(`<b>${escapeXml(name)}</b>`);
+                                newMarkers.push(marker);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (newMarkers.length > 0) {
+                markersClusterGroup.clearLayers();
+                markersClusterGroup.addLayers(newMarkers);
+            }
+
+            // Płatne dopasowanie widoku mapy do zawartości
+            if (drawnItems.getLayers().length > 0) {
+                map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
+            } else if (newMarkers.length > 0) {
+                map.fitBounds(markersClusterGroup.getBounds());
+            }
+
+            updateProgress(100, `Wczytano: ${importedPolygonsCount} obszarów, ${newMarkers.length} punktów.`);
             recalculateAllRegions();
         }
 
