@@ -11,6 +11,8 @@
     <!-- Marker Cluster CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <!-- Leaflet Geocoder CSS (Wyszukiwarka adresów) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     
     <style>
         * { box-sizing: border-box; }
@@ -53,7 +55,7 @@
             cursor: pointer;
             font-size: 13px;
             transition: background 0.2s;
-            display: block; /* Widoczny domyślnie */
+            display: block;
         }
         .btn-process:hover { background: #2980b9; }
         .btn-process:disabled { background: #7f8c8d; cursor: not-allowed; }
@@ -175,6 +177,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Leaflet Geocoder JS -->
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
     <script>
         const map = L.map('map').setView([52.237, 21.017], 6);
@@ -196,6 +200,30 @@
             }
         });
         map.addControl(drawControl);
+
+        // Wyszukiwarka adresów na mapie
+        const geocoder = L.Control.geocoder({
+            defaultMarkGeocode: false,
+            placeholder: "Szukaj adresu...",
+            errorMessage: "Nie znaleziono adresu."
+        })
+        .on('markgeocode', function(e) {
+            const bbox = e.geocode.bbox;
+            const poly = L.polygon([
+                bbox.getSouthEast(),
+                bbox.getNorthEast(),
+                bbox.getNorthWest(),
+                bbox.getSouthWest()
+            ]);
+            
+            map.fitBounds(poly.getBounds());
+
+            L.marker(e.geocode.center)
+                .bindPopup(`<b>${escapeXml(e.geocode.name)}</b>`)
+                .addTo(map)
+                .openPopup();
+        })
+        .addTo(map);
 
         const markersClusterGroup = L.markerClusterGroup({ chunkedLoading: true });
         map.addLayer(markersClusterGroup);
@@ -223,12 +251,10 @@
         const processFilesBtn = document.getElementById('processFilesBtn');
         const fileQueueBox = document.getElementById('fileQueueBox');
 
-        // Resetowanie inputa przy kliknięciu, aby event 'change' zawsze wyzwalał ponowny wybór
         fileInput.addEventListener('click', function() {
             this.value = null;
         });
 
-        // 1. Zdarzenie wyboru plików (podgląd w interfejsie)
         fileInput.addEventListener('change', function() {
             const files = fileInput.files;
             if (!files || files.length === 0) {
@@ -253,10 +279,9 @@
                 fileQueueBox.appendChild(itemDiv);
             });
 
-            document.getElementById('status').innerText = `Wybrano ${files.length} plik(ów). Kliknij przycisk "Załaduj pliki na mapę".`;
+            document.getElementById('status').innerText = `Wybrano ${files.length} plik(ów). Kliknij przycisk poniżej.`;
         });
 
-        // 2. Obsługa przycisku "Załaduj pliki na mapę"
         processFilesBtn.addEventListener('click', async function() {
             const files = fileInput.files;
             if (!files || files.length === 0) {
@@ -512,7 +537,7 @@
                     const label = labelKey ? row[labelKey] : 'Punkt';
 
                     if (!isNaN(lat) && !isNaN(lon)) {
-                        newMarkers.push(L.marker([lat, lon]).bindPopup(`<b>${label}</b>`));
+                        newMarkers.push(L.marker([lat, lon]).bindPopup(`<b>${escapeXml(label)}</b>`));
                     }
                 }
             });
@@ -548,7 +573,7 @@
 
             card.innerHTML = `
                 <div class="region-card-header">
-                    <input type="text" class="region-title-input" value="${defaultName}">
+                    <input type="text" class="region-title-input" value="${escapeXml(defaultName)}">
                 </div>
                 <div class="region-stats">
                     📍 Liczba punktów: <b class="point-count">${count}</b>
