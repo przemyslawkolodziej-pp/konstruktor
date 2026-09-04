@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa Rejonów - Import KML, KMZ, XLSX</title>
+    <title>Mapa Rejonów - Edycja KML, KMZ, XLSX</title>
     
     <!-- Leaflet & Leaflet Draw CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -11,7 +11,7 @@
     <!-- Marker Cluster CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-    <!-- Leaflet Geocoder CSS (Wyszukiwarka adresów) -->
+    <!-- Leaflet Geocoder CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     
     <style>
@@ -172,12 +172,12 @@
     <!-- Biblioteki JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <!-- Leaflet Geocoder JS -->
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
     <script>
@@ -201,8 +201,8 @@
         });
         map.addControl(drawControl);
 
-        // Wyszukiwarka adresów na mapie
-        const geocoder = L.Control.geocoder({
+        // Geocoder
+        L.Control.geocoder({
             defaultMarkGeocode: false,
             placeholder: "Szukaj adresu...",
             errorMessage: "Nie znaleziono adresu."
@@ -210,18 +210,11 @@
         .on('markgeocode', function(e) {
             const bbox = e.geocode.bbox;
             const poly = L.polygon([
-                bbox.getSouthEast(),
-                bbox.getNorthEast(),
-                bbox.getNorthWest(),
-                bbox.getSouthWest()
+                bbox.getSouthEast(), bbox.getNorthEast(),
+                bbox.getNorthWest(), bbox.getSouthWest()
             ]);
-            
             map.fitBounds(poly.getBounds());
-
-            L.marker(e.geocode.center)
-                .bindPopup(`<b>${escapeXml(e.geocode.name)}</b>`)
-                .addTo(map)
-                .openPopup();
+            L.marker(e.geocode.center).bindPopup(`<b>${escapeXml(e.geocode.name)}</b>`).addTo(map).openPopup();
         })
         .addTo(map);
 
@@ -230,6 +223,7 @@
 
         let regionCounter = 1;
 
+        // Tworzenie nowego kształtu ręcznie
         map.on(L.Draw.Event.CREATED, function (e) {
             const layer = e.layer;
             drawnItems.addLayer(layer);
@@ -247,13 +241,36 @@
             }
         });
 
+        // 🔄 Zdarzenie edycji kształtów (przesuwanie wierzchołków)
+        map.on(L.Draw.Event.EDITED, function (e) {
+            const layers = e.layers;
+            layers.eachLayer(function (layer) {
+                if (layer.regionId) {
+                    const newCount = countPointsInLayer(layer);
+                    const card = document.getElementById(layer.regionId);
+                    if (card) {
+                        card.querySelector('.point-count').innerText = newCount;
+                    }
+                }
+            });
+        });
+
+        // 🗑️ Zdarzenie usunięcia kształtu przez pasek narzędzi edycji
+        map.on(L.Draw.Event.DELETED, function (e) {
+            const layers = e.layers;
+            layers.eachLayer(function (layer) {
+                if (layer.regionId) {
+                    const card = document.getElementById(layer.regionId);
+                    if (card) card.remove();
+                }
+            });
+        });
+
         const fileInput = document.getElementById('fileInput');
         const processFilesBtn = document.getElementById('processFilesBtn');
         const fileQueueBox = document.getElementById('fileQueueBox');
 
-        fileInput.addEventListener('click', function() {
-            this.value = null;
-        });
+        fileInput.addEventListener('click', function() { this.value = null; });
 
         fileInput.addEventListener('change', function() {
             const files = fileInput.files;
@@ -290,7 +307,6 @@
             }
 
             processFilesBtn.disabled = true;
-
             let totalPolygons = 0;
             let totalMarkers = 0;
 
@@ -465,6 +481,7 @@
                             fillOpacity: 0.4
                         });
 
+                        // 🔑 DODANIE WARSTWY DO drawnItems Pozwala na jej edycję!
                         drawnItems.addLayer(polygonLayer);
                         polygonLayer.regionColor = polyColor;
 
