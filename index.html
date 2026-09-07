@@ -16,30 +16,52 @@
     
     <style>
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            display: flex; 
+            flex-direction: column;
+            height: 100vh; 
+            overflow: hidden; 
+        }
 
+        /* GÓRNY PASEK NAWIGACYJNY */
         .top-bar {
-  background-color: #1e293b; /* Ciemne tło */
-  color: #ffffff;             /* Biały tekst */
-  text-align: center;
-  padding: 10px 15px;
-  font-size: 14px;
-  font-family: system-ui, -apple-system, sans-serif;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
+            background-color: #1e293b;
+            color: #ffffff;
+            padding: 8px 15px;
+            font-size: 13px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            z-index: 10001;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
 
-.top-bar a {
-  color: #38bdf8;             /* Jasnoniebieski kolor linku */
-  text-decoration: none;
-  font-weight: 600;
-  margin-left: 8px;
-  transition: color 0.2s ease;
-}
+        .top-bar a {
+            color: #38bdf8;
+            text-decoration: none;
+            font-weight: bold;
+            transition: color 0.2s ease;
+        }
 
-.top-bar a:hover {
-  color: #7dd3fc;             /* Jaśniejszy odcień po najechaniu */
-  text-decoration: underline;
-}
+        .top-bar a:hover {
+            color: #7dd3fc;
+            text-decoration: underline;
+        }
+
+        /* KONTENER GŁÓWNY NA PANELI I MAPĘ */
+        .main-wrapper {
+            display: flex;
+            flex: 1;
+            width: 100%;
+            height: calc(100vh - 35px);
+            overflow: hidden;
+        }
+        
         /* Styl dla nakładki logowania */
         #loginOverlay {
             position: fixed;
@@ -266,11 +288,15 @@
     </style>
 </head>
 <body>
-<div class="top-bar">
-   <a href="https://script.google.com/macros/s/AKfycbzdgYyzKIzhx7ZYq040sT9CNmhJugOnJpooxy7LC0yq_Kuu9jXNssE-w9YIrZSq1zizMw/exec" target="_blank" rel="noopener noreferrer">
-    Otwórz aplikację do geokodowania adresów &rarr;
-  </a>
-</div>
+
+    <!-- GÓRNY PASEK Z LINKIEM -->
+    <div class="top-bar">
+        <span>Przetwarzaj współrzędne masowo:</span>
+        <a href="https://TWOJA-NAZWA.github.io/NAZWA-REPO" target="_blank" rel="noopener noreferrer">
+            Otwórz aplikację do geokodowania adresów &rarr;
+        </a>
+    </div>
+
     <!-- NAKŁADKA LOGOWANIA -->
     <div id="loginOverlay">
         <div class="login-card">
@@ -284,68 +310,73 @@
         </div>
     </div>
 
-    <!-- LEWY PANEL: Pliki, Akcje, Ustawienia -->
-    <div id="sidebar-left" class="sidebar">
-        <div class="sidebar-header">
-            <h3>Wczytaj Pliki KML / KMZ / XLSX</h3>
-            <div class="file-upload-box">
-                <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.kml,.kmz" multiple>
-                <button id="processFilesBtn" class="btn-process">🚀 Załaduj pliki na mapę</button>
-                <div id="status" class="status-text"></div>
-                
-                <div id="queueToggleHeader" class="queue-toggle-header" style="display: none;">
-                    <span>LISTA PLIKÓW</span>
-                    <span id="toggleIcon">▼</span>
+    <!-- WSPÓLNY KONTENER NA PANELI I MAPĘ -->
+    <div class="main-wrapper">
+
+        <!-- LEWY PANEL: Pliki, Akcje, Ustawienia -->
+        <div id="sidebar-left" class="sidebar">
+            <div class="sidebar-header">
+                <h3>Wczytaj Pliki KML / KMZ / XLSX</h3>
+                <div class="file-upload-box">
+                    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.kml,.kmz" multiple>
+                    <button id="processFilesBtn" class="btn-process">🚀 Załaduj pliki na mapę</button>
+                    <div id="status" class="status-text"></div>
+                    
+                    <div id="queueToggleHeader" class="queue-toggle-header" style="display: none;">
+                        <span>LISTA PLIKÓW</span>
+                        <span id="toggleIcon">▼</span>
+                    </div>
+                    <div id="fileQueueBox"></div>
                 </div>
-                <div id="fileQueueBox"></div>
+            </div>
+
+            <div class="unassigned-bar">
+                <div class="unassigned-bar-top">
+                    <span>Punktów nieprzypisanych: <b id="unassignedCount">0</b></span>
+                </div>
+                <div class="unassigned-btns">
+                    <button id="toggleUnassignedBtn" class="btn-filter-unassigned">Pokaż nieprzypisane</button>
+                    <button id="openUnassignedModalBtn" class="btn-manage-unassigned">📋 Zarządzaj błędnymi</button>
+                </div>
+            </div>
+
+            <div class="workdays-bar">
+                <div>
+                    <select id="monthSelect"></select>
+                    <select id="yearSelect"></select>
+                </div>
+                <div class="workdays-info">
+                    Dni robocze: <span id="workdaysCount">0</span>
+                </div>
+            </div>
+
+            <div class="actions-bar">
+                <button id="undoBtn" class="btn-action btn-undo" disabled>↩️ Cofnij (Ctrl+Z)</button>
+                <button id="toggleEditBtn" class="btn-action btn-edit-toggle">✏️ Edytuj wszystkie rejony</button>
+                <button id="saveEditBtn" class="btn-action btn-save-toggle">💾 Zapisz edycję</button>
+                <button id="exportXlsxBtn" class="btn-action btn-export-xlsx">📊 Eksportuj podsumowanie (XLSX)</button>
+                <button id="exportKmlBtn" class="btn-action btn-export-kml">📥 Eksportuj rejony do KML</button>
+                <button id="logoutBtn" class="btn-action btn-logout">🚪 Wyloguj się</button>
             </div>
         </div>
 
-        <div class="unassigned-bar">
-            <div class="unassigned-bar-top">
-                <span>Punktów nieprzypisanych: <b id="unassignedCount">0</b></span>
-            </div>
-            <div class="unassigned-btns">
-                <button id="toggleUnassignedBtn" class="btn-filter-unassigned">Pokaż nieprzypisane</button>
-                <button id="openUnassignedModalBtn" class="btn-manage-unassigned">📋 Zarządzaj błędnymi</button>
-            </div>
-        </div>
+        <!-- ŚRODEK: Mapa -->
+        <div id="map"></div>
 
-        <div class="workdays-bar">
-            <div>
-                <select id="monthSelect"></select>
-                <select id="yearSelect"></select>
+        <!-- PRAWY PANEL: Lista Rejonów -->
+        <div id="sidebar-right" class="sidebar">
+            <div class="sidebar-header" style="display: flex; align-items: center; justify-content: space-between;">
+                <h3 style="margin: 0;">LISTA REJONÓW</h3>
+                <button id="resetStorageBtn" class="btn-reset-storage" title="Usuwa wszystkie rejony i punkty">🧹 Wyczyść wszystko</button>
             </div>
-            <div class="workdays-info">
-                Dni robocze: <span id="workdaysCount">0</span>
+
+            <div id="regionsList">
+                <div id="emptyInfo" style="text-align: center; color: #adb5bd; margin-top: 20px; font-size: 12px;">
+                    Brak narysowanych rejonów. Wczytaj pliki lub narysuj obszar ręcznie.
+                </div>
             </div>
         </div>
 
-        <div class="actions-bar">
-            <button id="undoBtn" class="btn-action btn-undo" disabled>↩️ Cofnij (Ctrl+Z)</button>
-            <button id="toggleEditBtn" class="btn-action btn-edit-toggle">✏️ Edytuj wszystkie rejony</button>
-            <button id="saveEditBtn" class="btn-action btn-save-toggle">💾 Zapisz edycję</button>
-            <button id="exportXlsxBtn" class="btn-action btn-export-xlsx">📊 Eksportuj podsumowanie (XLSX)</button>
-            <button id="exportKmlBtn" class="btn-action btn-export-kml">📥 Eksportuj rejony do KML</button>
-            <button id="logoutBtn" class="btn-action btn-logout">🚪 Wyloguj się</button>
-        </div>
-    </div>
-
-    <!-- ŚRODEK: Mapa -->
-    <div id="map"></div>
-
-    <!-- PRAWY PANEL: Lista Rejonów -->
-    <div id="sidebar-right" class="sidebar">
-        <div class="sidebar-header" style="display: flex; align-items: center; justify-content: space-between;">
-            <h3 style="margin: 0;">LISTA REJONÓW</h3>
-            <button id="resetStorageBtn" class="btn-reset-storage" title="Usuwa wszystkie rejony i punkty">🧹 Wyczyść wszystko</button>
-        </div>
-
-        <div id="regionsList">
-            <div id="emptyInfo" style="text-align: center; color: #adb5bd; margin-top: 20px; font-size: 12px;">
-                Brak narysowanych rejonów. Wczytaj pliki lub narysuj obszar ręcznie.
-            </div>
-        </div>
     </div>
 
     <!-- OKNO MODALNE DO MASOWEGO PRZYPISYWANIA BŁĘDNYCH PUNKTÓW -->
