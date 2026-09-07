@@ -1480,8 +1480,7 @@
                 return;
             }
 
-            if (searchUnassignedGroupsInput) {
-                searchUnassignedGroupsInput.value = '';
+            const currentQuery = searchUnassignedGroupsInput ? searchUnassignedGroupsInput.value : '';
             }
 
             const groups = {};
@@ -1536,6 +1535,8 @@
                     }
                 });
             });
+        // Aplikujemy istniejący filtr na nowo wyrenderowaną listę
+            filterUnassignedGroups();
 
             unassignedModal.style.display = 'flex';
         }
@@ -1579,6 +1580,7 @@
             if (remainingUnassigned.length > 0) {
                 openUnassignedModal();
             } else {
+                if (searchUnassignedGroupsInput) searchUnassignedGroupsInput.value = '';
                 closeUnassignedModal();
             }
         }
