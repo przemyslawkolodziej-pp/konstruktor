@@ -292,7 +292,7 @@
     <!-- GÓRNY PASEK Z LINKIEM -->
     <div class="top-bar">
         <span>Przetwarzaj współrzędne masowo:</span>
-        <a href="https://script.google.com/macros/s/AKfycbzdgYyzKIzhx7ZYq040sT9CNmhJugOnJpooxy7LC0yq_Kuu9jXNssE-w9YIrZSq1zizMw/exec" target="_blank" rel="noopener noreferrer">
+        <a href="https://TWOJA-NAZWA.github.io/NAZWA-REPO" target="_blank" rel="noopener noreferrer">
             Otwórz aplikację do geokodowania adresów &rarr;
         </a>
     </div>
@@ -386,6 +386,12 @@
                 <h3>📋 Masowe przypisywanie błędnie geokodowanych punktów</h3>
                 <button class="btn-close-modal" id="closeUnassignedModalBtn">✖</button>
             </div>
+            
+            <!-- POLE WYSZUKIWANIA NA ŻYWO -->
+            <div style="padding: 10px 0 0 0;">
+                <input type="text" id="searchUnassignedGroupsInput" placeholder="🔍 Szukaj ulicy / nazwy..." style="width: 100%; padding: 8px 10px; font-size: 12px; border: 1px solid #ced4da; border-radius: 4px;">
+            </div>
+
             <div id="unassignedGroupsList" class="modal-body">
                 <!-- Grupy punktów generowane dynamicznie -->
             </div>
@@ -1458,15 +1464,24 @@
         const openUnassignedModalBtn = document.getElementById('openUnassignedModalBtn');
         const closeUnassignedModalBtn = document.getElementById('closeUnassignedModalBtn');
         const unassignedModal = document.getElementById('unassignedModal');
+        const searchUnassignedGroupsInput = document.getElementById('searchUnassignedGroupsInput');
 
         openUnassignedModalBtn.addEventListener('click', openUnassignedModal);
         closeUnassignedModalBtn.addEventListener('click', closeUnassignedModal);
+
+        if (searchUnassignedGroupsInput) {
+            searchUnassignedGroupsInput.addEventListener('input', filterUnassignedGroups);
+        }
 
         function openUnassignedModal() {
             const unassigned = allMarkers.filter(m => !m.isAssigned);
             if (unassigned.length === 0) {
                 alert('Brak nieprzypisanych punktów!');
                 return;
+            }
+
+            if (searchUnassignedGroupsInput) {
+                searchUnassignedGroupsInput.value = '';
             }
 
             const groups = {};
@@ -1483,7 +1498,7 @@
             container.innerHTML = '';
 
             if (regionNames.length === 0) {
-                container.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">Narysuj najpierw przynajmniej jeden rejon, aby moc przypisać punkty.</div>';
+                container.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">Narysuj najpierw przynajmniej jeden rejon, aby móc przypisać punkty.</div>';
                 unassignedModal.style.display = 'flex';
                 return;
             }
@@ -1492,6 +1507,7 @@
                 const markersInGroup = groups[groupTitle];
                 const div = document.createElement('div');
                 div.className = 'group-item';
+                div.setAttribute('data-group-title', groupTitle.toLowerCase());
                 
                 const optionsHtml = regionNames.map(r => `<option value="${escapeXml(r)}">${escapeXml(r)}</option>`).join('');
 
@@ -1522,6 +1538,20 @@
             });
 
             unassignedModal.style.display = 'flex';
+        }
+
+        function filterUnassignedGroups() {
+            const query = searchUnassignedGroupsInput.value.toLowerCase().trim();
+            const groupItems = document.querySelectorAll('#unassignedGroupsList .group-item');
+
+            groupItems.forEach(item => {
+                const title = item.getAttribute('data-group-title') || '';
+                if (title.includes(query)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
         }
 
         function assignGroupToRegion(groupTitle, targetRegionName) {
