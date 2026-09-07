@@ -1480,9 +1480,6 @@
                 return;
             }
 
-            const currentQuery = searchUnassignedGroupsInput ? searchUnassignedGroupsInput.value : '';
-            }
-
             const groups = {};
             unassigned.forEach(m => {
                 const title = m.markerTitle || 'Brak nazwy/adresu';
@@ -1535,14 +1532,15 @@
                     }
                 });
             });
-        // Aplikujemy istniejący filtr na nowo wyrenderowaną listę
+
+            // Reaplikujemy filtrowanie dla zachowania wpisanego tekstu
             filterUnassignedGroups();
 
             unassignedModal.style.display = 'flex';
         }
 
         function filterUnassignedGroups() {
-            const query = searchUnassignedGroupsInput.value.toLowerCase().trim();
+            const query = searchUnassignedGroupsInput ? searchUnassignedGroupsInput.value.toLowerCase().trim() : '';
             const groupItems = document.querySelectorAll('#unassignedGroupsList .group-item');
 
             groupItems.forEach(item => {
