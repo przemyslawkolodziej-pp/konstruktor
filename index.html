@@ -17,7 +17,29 @@
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; overflow: hidden; }
-        
+
+        .top-bar {
+  background-color: #1e293b; /* Ciemne tło */
+  color: #ffffff;             /* Biały tekst */
+  text-align: center;
+  padding: 10px 15px;
+  font-size: 14px;
+  font-family: system-ui, -apple-system, sans-serif;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.top-bar a {
+  color: #38bdf8;             /* Jasnoniebieski kolor linku */
+  text-decoration: none;
+  font-weight: 600;
+  margin-left: 8px;
+  transition: color 0.2s ease;
+}
+
+.top-bar a:hover {
+  color: #7dd3fc;             /* Jaśniejszy odcień po najechaniu */
+  text-decoration: underline;
+}
         /* Styl dla nakładki logowania */
         #loginOverlay {
             position: fixed;
@@ -244,7 +266,11 @@
     </style>
 </head>
 <body>
-
+<div class="top-bar">
+   <a href="https://script.google.com/macros/s/AKfycbzdgYyzKIzhx7ZYq040sT9CNmhJugOnJpooxy7LC0yq_Kuu9jXNssE-w9YIrZSq1zizMw/exec" target="_blank" rel="noopener noreferrer">
+    Otwórz aplikację do geokodowania adresów &rarr;
+  </a>
+</div>
     <!-- NAKŁADKA LOGOWANIA -->
     <div id="loginOverlay">
         <div class="login-card">
