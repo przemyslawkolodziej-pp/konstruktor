@@ -1353,8 +1353,8 @@
         function renderTableData(rows) {
             const newMarkers = [];
             rows.forEach(row => {
-                const latKey = Object.keys(row).find(k => ['lat', 'latitude', 'szerokosc', 'szerokość'].includes(k.trim().toLowerCase()));
-                const lonKey = Object.keys(row).find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość'].includes(k.trim().toLowerCase()));
+                const latKey = Object.keys(row).find(k => ['lat', 'latitude', 'szerokosc', 'szerokość', 'Szerokość geogr. (Lat)'].includes(k.trim().toLowerCase()));
+                const lonKey = Object.keys(row).find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość', 'Długość geogr. (Lng)'].includes(k.trim().toLowerCase()));
                 const labelKey = Object.keys(row).find(k => ['adres', 'address', 'nazwa', 'name'].includes(k.trim().toLowerCase()));
 
                 if (latKey && lonKey) {
