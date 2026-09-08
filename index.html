@@ -1351,34 +1351,41 @@
         }
 
         function renderTableData(rows) {
-            const newMarkers = [];
-            rows.forEach(row => {
-                const latKey = Object.keys(row).find(k => ['lat', 'latitude', 'szerokosc', 'szerokość', 'szerokość geogr. (lat)'].includes(k.trim().toLowerCase()));
-                const lonKey = Object.keys(row).find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość', 'długość geogr. (lng)'].includes(k.trim().toLowerCase()));
-                
-                // SZUKANIE KOLUMNY Z NAZWĄ (PRIORYTET DLA "ULICA")
-                const labelKey = Object.keys(row).find(k => {
-                    const cleanKey = k.trim().toLowerCase();
-                    return cleanKey === 'ulica' || cleanKey.includes('ulica');
-                }) || Object.keys(row).find(k => ['adres', 'address', 'nazwa', 'name'].includes(k.trim().toLowerCase()));
+    const newMarkers = [];
+    rows.forEach(row => {
+        const keys = Object.keys(row);
+        
+        // Wyszukiwanie współrzędnych
+        const latKey = keys.find(k => ['lat', 'latitude', 'szerokosc', 'szerokość', 'Szerokość geogr. (Lat)'].includes(k.trim().toLowerCase()));
+        const lonKey = keys.find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość', 'Długość geogr. (Lng)'].includes(k.trim().toLowerCase()));
 
-                if (latKey && lonKey) {
-                    const lat = parseFloat(String(row[latKey]).replace(',', '.'));
-                    const lon = parseFloat(String(row[lonKey]).replace(',', '.'));
-                    
-                    const label = (labelKey && row[labelKey]) ? String(row[labelKey]).trim() : 'Punkt';
+        if (latKey && lonKey) {
+            const lat = parseFloat(row[latKey]);
+            const lon = parseFloat(row[lonKey]);
 
-                    if (!isNaN(lat) && !isNaN(lon)) {
-                        const m = createInteractiveMarker(lat, lon, label);
-                        newMarkers.push(m);
-                        allMarkers.push(m);
-                    }
-                }
-            });
+            // Odczyt wartości z kolumny B (indeks 1) i kolumny C (indeks 2)
+            const valB = keys[1] && row[keys[1]] !== undefined ? String(row[keys[1]]).trim() : '';
+            const valC = keys[2] && row[keys[2]] !== undefined ? String(row[keys[2]]).trim() : '';
 
-            markersClusterGroup.addLayers(newMarkers);
-            return newMarkers.length;
+            // Połączenie wartości B i C spacją
+            let label = [valB, valC].filter(Boolean).join(' ');
+            
+            // Jeśli obie kolumny są puste, ustaw domyślną etykietę
+            if (!label) {
+                label = 'Punkt';
+            }
+
+            if (!isNaN(lat) && !isNaN(lon)) {
+                const m = createInteractiveMarker(lat, lon, label);
+                newMarkers.push(m);
+                allMarkers.push(m);
+            }
         }
+    });
+
+    markersClusterGroup.addLayers(newMarkers);
+    return newMarkers.length;
+}
 
         function recalculateAllStats() {
             const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
