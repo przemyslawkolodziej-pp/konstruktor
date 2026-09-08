@@ -1593,34 +1593,41 @@
         }
 
         function assignGroupToRegion(groupTitle, targetRegionName) {
-            const targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === targetRegionName);
-            
-            if (!targetLayer) {
-                alert('Wybrany rejon nie istnieje!');
-                return;
-            }
+    const targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === targetRegionName);
+    
+    if (!targetLayer) {
+        alert('Wybrany rejon nie istnieje!');
+        return;
+    }
 
-            recordState();
+    recordState();
 
-            const center = targetLayer.getBounds().getCenter();
+    // Wyznaczamy punkt, który na 100% znajduje się wewnątrz wielokąta (a nie poza nim)
+    const geoJson = targetLayer.toGeoJSON();
+    const pointInside = turf.pointOnFeature(geoJson);
+    const interiorLatLng = L.latLng(pointInside.geometry.coordinates[1], pointInside.geometry.coordinates[0]);
 
-            const unassignedInGroup = allMarkers.filter(m => !m.isAssigned && (m.markerTitle || 'Brak nazwy/adresu') === groupTitle);
-            
-            unassignedInGroup.forEach(m => {
-                m.setLatLng(center);
-            });
+    // Pobieramy nieprzypisane punkty z danej grupy
+    const unassignedInGroup = allMarkers.filter(m => !m.isAssigned && (m.markerTitle || 'Brak nazwy/adresu') === groupTitle);
+    
+    // Przenosimy punkty bezpośrednio wewnątrz wielokąta
+    unassignedInGroup.forEach(m => {
+        m.setLatLng(interiorLatLng);
+    });
 
-            recalculateAllStats();
-            saveToLocalStorage();
+    // Przeliczamy statystyki ponownie
+    recalculateAllStats();
+    saveToLocalStorage();
 
-            const remainingUnassigned = allMarkers.filter(m => !m.isAssigned);
-            if (remainingUnassigned.length > 0) {
-                openUnassignedModal();
-            } else {
-                if (searchUnassignedGroupsInput) searchUnassignedGroupsInput.value = '';
-                closeUnassignedModal();
-            }
-        }
+    // Sprawdzamy, czy zostały jeszcze jakieś nieprzypisane punkty
+    const remainingUnassigned = allMarkers.filter(m => !m.isAssigned);
+    if (remainingUnassigned.length > 0) {
+        openUnassignedModal();
+    } else {
+        if (searchUnassignedGroupsInput) searchUnassignedGroupsInput.value = '';
+        closeUnassignedModal();
+    }
+}
 
         function closeUnassignedModal() {
             unassignedModal.style.display = 'none';
