@@ -1353,20 +1353,33 @@
         function renderTableData(rows) {
             const newMarkers = [];
             rows.forEach(row => {
-                const latKey = Object.keys(row).find(k => ['lat', 'latitude', 'szerokosc', 'szerokość', 'Szerokość geogr. (Lat)'].includes(k.trim().toLowerCase()));
-                const lonKey = Object.keys(row).find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość', 'Długość geogr. (Lng)'].includes(k.trim().toLowerCase()));
-                const labelKey = Object.keys(row).find(k => ['adres', 'address', 'nazwa', 'name'].includes(k.trim().toLowerCase()));
+                const latKey = Object.keys(row).find(k => ['lat', 'latitude', 'szerokosc', 'szerokość', 'szerokość geogr. (lat)'].includes(k.trim().toLowerCase()));
+                const lonKey = Object.keys(row).find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość', 'długość geogr. (lng)'].includes(k.trim().toLowerCase()));
+                
+                // SZUKANIE KOLUMNY Z NAZWĄ (PRIORYTET DLA "ULICA")
+                const labelKey = Object.keys(row).find(k => {
+                    const cleanKey = k.trim().toLowerCase();
+                    return cleanKey === 'ulica' || cleanKey.includes('ulica');
+                }) || Object.keys(row).find(k => ['adres', 'address', 'nazwa', 'name'].includes(k.trim().toLowerCase()));
 
                 if (latKey && lonKey) {
-                    const lat = parseFloat(row[latKey]);
-                    const lon = parseFloat(row[lonKey]);
-                    const label = labelKey ? row[labelKey] : 'Punkt';
+                    const lat = parseFloat(String(row[latKey]).replace(',', '.'));
+                    const lon = parseFloat(String(row[lonKey]).replace(',', '.'));
+                    
+                    // Pobranie wartości z kolumny ulica / adres
+                    const label = (labelKey && row[labelKey]) ? String(row[labelKey]).trim() : 'Punkt';
 
                     if (!isNaN(lat) && !isNaN(lon)) {
                         const m = createInteractiveMarker(lat, lon, label);
                         newMarkers.push(m);
                         allMarkers.push(m);
                     }
+                }
+            });
+
+            markersClusterGroup.addLayers(newMarkers);
+            return newMarkers.length;
+        }
                 }
             });
 
