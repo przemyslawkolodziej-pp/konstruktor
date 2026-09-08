@@ -1366,7 +1366,6 @@
                     const lat = parseFloat(String(row[latKey]).replace(',', '.'));
                     const lon = parseFloat(String(row[lonKey]).replace(',', '.'));
                     
-                    // Pobranie wartości z kolumny ulica / adres
                     const label = (labelKey && row[labelKey]) ? String(row[labelKey]).trim() : 'Punkt';
 
                     if (!isNaN(lat) && !isNaN(lon)) {
@@ -1374,12 +1373,6 @@
                         newMarkers.push(m);
                         allMarkers.push(m);
                     }
-                }
-            });
-
-            markersClusterGroup.addLayers(newMarkers);
-            return newMarkers.length;
-        }
                 }
             });
 
