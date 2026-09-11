@@ -907,7 +907,7 @@
 
                 // OPCJA 1: Wybór rejonu do przypisania
                 const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
-                const regionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy'))).sort((a, b) => a.localeCompare(b, 'pl'));
+                const regionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy'))).sort((a, b) => a.localeCompare(b, 'pl', { numeric: true }));
 
                 if (regionNames.length > 0) {
                     const assignBox = document.createElement('div');
@@ -942,11 +942,11 @@
                     popupContainer.appendChild(assignBox);
                 }
 
-                // OPCJA 2: Geokoduj ponownie (dla tego pojedynczego punktu)
+                // OPCJA 2: Geokoduj ten punkt ponownie
                 const btnGeocode = document.createElement('button');
                 btnGeocode.className = 'btn-popup-action';
                 btnGeocode.style.backgroundColor = '#27ae60';
-                btnGeocode.innerText = '🌐 Geokoduj ponownie ten punkt';
+                btnGeocode.innerText = '🌐 Geokoduj ten punkt';
 
                 btnGeocode.addEventListener('click', async () => {
                     btnGeocode.innerText = '⏳ Szukanie...';
@@ -967,39 +967,38 @@
                         marker.closePopup();
                     } else {
                         alert(`Nie udało się odnaleźć punktu w geokoderze.`);
-                        btnGeocode.innerText = '🌐 Geokoduj ponownie ten punkt';
+                        btnGeocode.innerText = '🌐 Geokoduj ten punkt';
                         btnGeocode.disabled = false;
                     }
                 });
 
                 popupContainer.appendChild(btnGeocode);
 
-                // OPCJA 2B: MASOWE GEOKODOWANIE DLA WSZYSTKICH PUNKTÓW Z TEJ SAMES LOKALIZACJI
-                const currentPos = marker.getLatLng();
-                const colocatedMarkers = allMarkers.filter(m => {
-                    const p = m.getLatLng();
-                    return Math.abs(p.lat - currentPos.lat) < 0.00001 && Math.abs(p.lng - currentPos.lng) < 0.00001;
-                });
+                // OPCJA 2B: Geokoduj ponownie wszystkie punkty z tej samej lokalizacji
+                const currentLoc = marker.getLatLng();
+                const sameLocMarkers = allMarkers.filter(m => 
+                    m.getLatLng().lat.toFixed(6) === currentLoc.lat.toFixed(6) && 
+                    m.getLatLng().lng.toFixed(6) === currentLoc.lng.toFixed(6)
+                );
 
-                if (colocatedMarkers.length > 1) {
-                    const btnGeocodeBatch = document.createElement('button');
-                    btnGeocodeBatch.className = 'btn-popup-action';
-                    btnGeocodeBatch.style.backgroundColor = '#8e44ad';
-                    btnGeocodeBatch.innerText = `🌐 Geokoduj ponownie wszystkie z tej lokalizacji (${colocatedMarkers.length})`;
+                if (sameLocMarkers.length > 1) {
+                    const btnGeocodeAllLoc = document.createElement('button');
+                    btnGeocodeAllLoc.className = 'btn-popup-action';
+                    btnGeocodeAllLoc.style.backgroundColor = '#d35400';
+                    btnGeocodeAllLoc.innerText = `🌐 Geokoduj wszystkie z tej lok. (${sameLocMarkers.length})`;
 
-                    btnGeocodeBatch.addEventListener('click', async () => {
-                        btnGeocodeBatch.innerText = '⏳ Przetwarzanie...';
-                        btnGeocodeBatch.disabled = true;
+                    btnGeocodeAllLoc.addEventListener('click', async () => {
+                        btnGeocodeAllLoc.innerText = '⏳ Masowe geokodowanie...';
+                        btnGeocodeAllLoc.disabled = true;
 
                         recordState();
                         let countSuccess = 0;
 
-                        for (const m of colocatedMarkers) {
+                        for (const m of sameLocMarkers) {
                             let targetLayer = null;
                             if (m.assignedRegionName && m.assignedRegionName !== 'Nieprzypisany') {
                                 targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === m.assignedRegionName);
                             }
-
                             const newLatLng = await geocodeAddressLive(m.markerTitle, m.getLatLng(), targetLayer);
                             if (newLatLng) {
                                 m.setLatLng(newLatLng);
@@ -1009,11 +1008,11 @@
 
                         recalculateAllStats();
                         saveToLocalStorage();
-                        alert(`Przetworzono ${colocatedMarkers.length} punktów. Pomyślnie zaktualizowano pozycję dla ${countSuccess}.`);
+                        alert(`Zakończono masowe geokodowanie. Przeniesiono ${countSuccess} z ${sameLocMarkers.length} punktów.`);
                         marker.closePopup();
                     });
 
-                    popupContainer.appendChild(btnGeocodeBatch);
+                    popupContainer.appendChild(btnGeocodeAllLoc);
                 }
 
                 // OPCJA 3: Usuwanie
@@ -1667,7 +1666,6 @@
             });
         }
 
-        // ZAKTUALIZOWANA FUNKCJA PARSUJĄCA TABELE Z DODAWANIEM MIEJSCOWOŚCI PO PRZECINKU
         function renderTableData(rows) {
             const newMarkers = [];
             rows.forEach(row => {
@@ -1680,17 +1678,12 @@
                     const lat = parseFloat(row[latKey]);
                     const lon = parseFloat(row[lonKey]);
 
-                    // Pobranie miejscowości (kolumna A -> keys[0])
                     const valA = keys[0] && row[keys[0]] !== undefined ? String(row[keys[0]]).trim() : '';
-                    // Pobranie ulicy (kolumna B -> keys[1])
                     const valB = keys[1] && row[keys[1]] !== undefined ? String(row[keys[1]]).trim() : '';
-                    // Pobranie numeru (kolumna C -> keys[2])
                     const valC = keys[2] && row[keys[2]] !== undefined ? String(row[keys[2]]).trim() : '';
 
-                    // Łączenie ulicy i numeru (dotychczasowa nazwa)
                     const streetAndNum = [valB, valC].filter(Boolean).join(' ');
 
-                    // Tworzenie pełnego ciągu: "Ulica Numer, Miejscowość"
                     let label = '';
                     if (streetAndNum && valA) {
                         label = `${streetAndNum}, ${valA}`;
@@ -1823,7 +1816,6 @@
             updateVisibleMarkersOnMap();
         });
 
-        // PRZYCISK NA PRAWYM PANELU BOCZNYM DO UKRYWANIA/ODKRYWANIA WSZYSTKICH PUNKTÓW NA RAZ
         const toggleAllPointsSidebarBtn = document.getElementById('toggleAllPointsSidebarBtn');
         toggleAllPointsSidebarBtn.addEventListener('click', () => {
             const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
@@ -1909,7 +1901,7 @@
             });
 
             const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
-            const regionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy'))).sort((a, b) => a.localeCompare(b, 'pl'));
+            const regionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy'))).sort((a, b) => a.localeCompare(b, 'pl', { numeric: true }));
 
             const container = document.getElementById('unassignedGroupsList');
             container.innerHTML = '';
@@ -1931,8 +1923,8 @@
 
                 if (sortMode === 'count-desc') return countB - countA;
                 if (sortMode === 'count-asc') return countA - countB;
-                if (sortMode === 'name-asc') return a.localeCompare(b, 'pl');
-                if (sortMode === 'name-desc') return b.localeCompare(a, 'pl');
+                if (sortMode === 'name-asc') return a.localeCompare(b, 'pl', { numeric: true });
+                if (sortMode === 'name-desc') return b.localeCompare(a, 'pl', { numeric: true });
                 return 0;
             });
 
@@ -2043,7 +2035,7 @@
             unassignedModal.style.display = 'none';
         }
 
-        // --- OPTYMALIZOWANA OBSŁUGA MODALA ZARZĄDZANIA WSZYSTKIMI PUNKTAMI (Z WIRTUALIZACJĄ/PAGINACJĄ) ---
+        // --- OPTYMALIZOWANA OBSŁUGA MODALA ZARZĄDZANIA WSZYSTKIMI PUNKTAMI ---
         const openAllPointsModalBtn = document.getElementById('openAllPointsModalBtn');
         const closeAllPointsModalBtn = document.getElementById('closeAllPointsModalBtn');
         const allPointsModal = document.getElementById('allPointsModal');
@@ -2108,7 +2100,7 @@
             }
 
             const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
-            modalRegionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy'))).sort((a, b) => a.localeCompare(b, 'pl'));
+            modalRegionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy'))).sort((a, b) => a.localeCompare(b, 'pl', { numeric: true }));
 
             const currentFilterRegion = filterAllPointsRegionSelect ? filterAllPointsRegionSelect.value : 'ALL';
             if (filterAllPointsRegionSelect) {
@@ -2157,10 +2149,10 @@
             });
 
             filteredPointsData.sort((a, b) => {
-                if (sortMode === 'name-asc') return a.title.localeCompare(b.title, 'pl');
-                if (sortMode === 'name-desc') return b.title.localeCompare(a.title, 'pl');
-                if (sortMode === 'region-asc') return a.assignedRegion.localeCompare(b.assignedRegion, 'pl');
-                if (sortMode === 'region-desc') return b.assignedRegion.localeCompare(a.assignedRegion, 'pl');
+                if (sortMode === 'name-asc') return a.title.localeCompare(b.title, 'pl', { numeric: true });
+                if (sortMode === 'name-desc') return b.title.localeCompare(a.title, 'pl', { numeric: true });
+                if (sortMode === 'region-asc') return a.assignedRegion.localeCompare(b.assignedRegion, 'pl', { numeric: true });
+                if (sortMode === 'region-desc') return b.assignedRegion.localeCompare(a.assignedRegion, 'pl', { numeric: true });
                 return 0;
             });
 
@@ -2305,7 +2297,8 @@
                 groups[name].push(layer);
             });
 
-            const sortedRegionNames = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'pl'));
+            // POPRAWKA: Naturalne sortowanie alfabetyczno-numeryczne (np. Rejon 2 < Rejon 10 < Rejon 100)
+            const sortedRegionNames = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'pl', { numeric: true }));
 
             sortedRegionNames.forEach(name => {
                 const groupLayers = groups[name];
