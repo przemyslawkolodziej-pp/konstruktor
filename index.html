@@ -942,11 +942,11 @@
                     popupContainer.appendChild(assignBox);
                 }
 
-                // OPCJA 2: Geokoduj ponownie (ograniczone do rejonu, jeśli jest przydzielony)
+                // OPCJA 2: Geokoduj ponownie (dla tego pojedynczego punktu)
                 const btnGeocode = document.createElement('button');
                 btnGeocode.className = 'btn-popup-action';
                 btnGeocode.style.backgroundColor = '#27ae60';
-                btnGeocode.innerText = '🌐 Geokoduj ponownie';
+                btnGeocode.innerText = '🌐 Geokoduj ponownie ten punkt';
 
                 btnGeocode.addEventListener('click', async () => {
                     btnGeocode.innerText = '⏳ Szukanie...';
@@ -967,12 +967,54 @@
                         marker.closePopup();
                     } else {
                         alert(`Nie udało się odnaleźć punktu w geokoderze.`);
-                        btnGeocode.innerText = '🌐 Geokoduj ponownie';
+                        btnGeocode.innerText = '🌐 Geokoduj ponownie ten punkt';
                         btnGeocode.disabled = false;
                     }
                 });
 
                 popupContainer.appendChild(btnGeocode);
+
+                // OPCJA 2B: MASOWE GEOKODOWANIE DLA WSZYSTKICH PUNKTÓW Z TEJ SAMES LOKALIZACJI
+                const currentPos = marker.getLatLng();
+                const colocatedMarkers = allMarkers.filter(m => {
+                    const p = m.getLatLng();
+                    return Math.abs(p.lat - currentPos.lat) < 0.00001 && Math.abs(p.lng - currentPos.lng) < 0.00001;
+                });
+
+                if (colocatedMarkers.length > 1) {
+                    const btnGeocodeBatch = document.createElement('button');
+                    btnGeocodeBatch.className = 'btn-popup-action';
+                    btnGeocodeBatch.style.backgroundColor = '#8e44ad';
+                    btnGeocodeBatch.innerText = `🌐 Geokoduj ponownie wszystkie z tej lokalizacji (${colocatedMarkers.length})`;
+
+                    btnGeocodeBatch.addEventListener('click', async () => {
+                        btnGeocodeBatch.innerText = '⏳ Przetwarzanie...';
+                        btnGeocodeBatch.disabled = true;
+
+                        recordState();
+                        let countSuccess = 0;
+
+                        for (const m of colocatedMarkers) {
+                            let targetLayer = null;
+                            if (m.assignedRegionName && m.assignedRegionName !== 'Nieprzypisany') {
+                                targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === m.assignedRegionName);
+                            }
+
+                            const newLatLng = await geocodeAddressLive(m.markerTitle, m.getLatLng(), targetLayer);
+                            if (newLatLng) {
+                                m.setLatLng(newLatLng);
+                                countSuccess++;
+                            }
+                        }
+
+                        recalculateAllStats();
+                        saveToLocalStorage();
+                        alert(`Przetworzono ${colocatedMarkers.length} punktów. Pomyślnie zaktualizowano pozycję dla ${countSuccess}.`);
+                        marker.closePopup();
+                    });
+
+                    popupContainer.appendChild(btnGeocodeBatch);
+                }
 
                 // OPCJA 3: Usuwanie
                 const deleteBtn = document.createElement('button');
