@@ -210,6 +210,10 @@
         .btn-manage-all-points { background: #8e44ad; color: white; }
         .btn-manage-all-points:hover { background: #732d91; }
 
+        .btn-toggle-hotspots { background: #c0392b; color: white; }
+        .btn-toggle-hotspots:hover { background: #962d22; }
+        .btn-toggle-hotspots.active { background: #27ae60; }
+
         .btn-edit-toggle { background: #f39c12; color: white; }
         .btn-edit-toggle:hover { background: #d35400; }
 
@@ -221,9 +225,9 @@
 
         .btn-reset-storage { background: #e74c3c; color: white; font-size: 10px; padding: 3px 6px; border: none; border-radius: 3px; cursor: pointer; }
         .btn-reset-storage:hover { background: #c0392b; }
-
-        .btn-toggle-points { background: #2980b9; color: white; font-size: 10px; padding: 3px 6px; border: none; border-radius: 3px; cursor: pointer; }
-        .btn-toggle-points:hover { background: #1f618d; }
+        
+        .btn-toggle-all-points-sidebar { background: #16a085; color: white; font-size: 10px; padding: 3px 6px; border: none; border-radius: 3px; cursor: pointer; }
+        .btn-toggle-all-points-sidebar:hover { background: #117a65; }
 
         #regionsList { flex: 1; overflow-y: auto; padding: 6px 8px; }
 
@@ -240,13 +244,15 @@
         .region-title-input:hover, .region-title-input:focus { border-color: #ccc; background: #fff; }
         
         .region-stats { font-size: 10px; color: #555; margin-bottom: 3px; background: #f1f3f5; padding: 2px 4px; border-radius: 3px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2px; }
-        .region-controls { display: flex; gap: 4px; align-items: center; }
+        .region-controls { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
         .color-picker-wrapper { display: flex; align-items: center; gap: 2px; font-size: 10px; color: #666; }
         .color-picker { border: none; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: none; padding: 0; }
 
         .btn { padding: 2px 5px; font-size: 10px; border: none; border-radius: 3px; cursor: pointer; }
         .btn-zoom { background: #e9ecef; color: #495057; }
         .btn-zoom:hover { background: #dee2e6; }
+        .btn-toggle-points { background: #16a085; color: white; }
+        .btn-toggle-points:hover { background: #117a65; }
         .btn-delete { background: #ffe3e3; color: #dc3545; margin-left: auto; padding: 2px 5px; }
         .btn-delete:hover { background: #ffc9c9; }
 
@@ -382,6 +388,7 @@
                 <button id="undoBtn" class="btn-action btn-undo" disabled>↩️ Cofnij (Ctrl+Z)</button>
                 <button id="toggleEditBtn" class="btn-action btn-edit-toggle">✏️ Edytuj wszystkie rejony</button>
                 <button id="saveEditBtn" class="btn-action btn-save-toggle">💾 Zapisz edycję</button>
+                <button id="toggleHotspotsBtn" class="btn-action btn-toggle-hotspots">🔥 Pokaż hotspoty</button>
                 <button id="exportXlsxBtn" class="btn-action btn-export-xlsx">📊 Eksportuj podsumowanie (XLSX)</button>
                 <button id="exportKmlBtn" class="btn-action btn-export-kml">📥 Eksportuj rejony do KML</button>
                 <button id="openAllPointsModalBtn" class="btn-action btn-manage-all-points">📍 Zarządzaj punktami</button>
@@ -395,10 +402,10 @@
         <!-- PRAWY PANEL: Lista Rejonów -->
         <div id="sidebar-right" class="sidebar">
             <div class="sidebar-header" style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
-                <h3 style="margin: 0;">LISTA REJONÓW</h3>
+                <h3 style="margin: 0; font-size: 13px;">LISTA REJONÓW</h3>
                 <div style="display: flex; gap: 4px;">
-                    <button id="toggleAllPointsVisibilityBtn" class="btn-toggle-points" title="Ukryj/Odkryj punkty">👁️ Ukryj punkty</button>
-                    <button id="resetStorageBtn" class="btn-reset-storage" title="Usuwa wszystkie rejony i punkty">🧹 Wyczyść wszystko</button>
+                    <button id="toggleAllPointsSidebarBtn" class="btn-toggle-all-points-sidebar" title="Ukryj lub pokaż wszystkie punkty ze wszystkich rejonów naraz">👁️ Pokaż/ukryj punkty</button>
+                    <button id="resetStorageBtn" class="btn-reset-storage" title="Usuwa wszystkie rejony i punkty">🧹 Wyczyść</button>
                 </div>
             </div>
 
@@ -625,9 +632,13 @@
         let selectedLayer = null;
         let isEditing = false;
         let showOnlyUnassigned = false;
-        let areAllPointsVisible = true;
+        const hiddenRegionsSet = new Set();
+        let isHotspotsActive = false;
+        const hotspotsLayerGroup = L.layerGroup().addTo(map);
+
         const toggleEditBtn = document.getElementById('toggleEditBtn');
         const saveEditBtn = document.getElementById('saveEditBtn');
+        const toggleHotspotsBtn = document.getElementById('toggleHotspotsBtn');
         const undoBtn = document.getElementById('undoBtn');
         let processedFilesSet = new Set();
         let allMarkers = [];
@@ -705,9 +716,7 @@
                 const m = createInteractiveMarker(pm.lat, pm.lng, pm.title);
                 allMarkers.push(m);
             });
-            if (areAllPointsVisible) {
-                markersClusterGroup.addLayers(allMarkers);
-            }
+            markersClusterGroup.addLayers(allMarkers);
 
             rebuildRegionsListUI();
             recalculateAllStats();
@@ -835,13 +844,6 @@
         monthSelect.addEventListener('change', updateWorkdaysDisplay);
         yearSelect.addEventListener('change', updateWorkdaysDisplay);
 
-        // FUNKCJA POMOCNICZA DO GEOGRODOWANIA Z SORTOWANIEM REJONÓW ALFABETYCZNIE
-        function getSortedRegionNames() {
-            const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
-            const regionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy')));
-            return regionNames.sort((a, b) => a.localeCompare(b, 'pl'));
-        }
-
         // FUNKCJA POMOCNICZA DO GEOKODOWANIA NA ŻYWO (Z OGRANICZENIEM PROMIENIA DO 15 KM)
         async function geocodeAddressLive(addressQuery, currentLatLng = null) {
             try {
@@ -896,8 +898,9 @@
                 popupContainer.style.minWidth = '180px';
                 popupContainer.innerHTML = `<b>${escapeXml(marker.markerTitle)}</b><br>`;
 
-                // OPCJA 1: Wybór rejonu do przypisania (z posortowaną listą)
-                const regionNames = getSortedRegionNames();
+                // OPCJA 1: Wybór rejonu do przypisania
+                const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+                const regionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy'))).sort((a, b) => a.localeCompare(b, 'pl'));
 
                 if (regionNames.length > 0) {
                     const assignBox = document.createElement('div');
@@ -1102,6 +1105,48 @@
         });
 
         saveEditBtn.addEventListener('click', saveCurrentEdits);
+
+        toggleHotspotsBtn.addEventListener('click', () => {
+            isHotspotsActive = !isHotspotsActive;
+            if (isHotspotsActive) {
+                toggleHotspotsBtn.classList.add('active');
+                toggleHotspotsBtn.innerText = '🔥 Ukryj hotspoty';
+            } else {
+                toggleHotspotsBtn.classList.remove('active');
+                toggleHotspotsBtn.innerText = '🔥 Pokaż hotspoty';
+            }
+            updateHotspots();
+        });
+
+        function updateHotspots() {
+            hotspotsLayerGroup.clearLayers();
+            if (!isHotspotsActive) return;
+
+            const coordCounts = {};
+            allMarkers.forEach(m => {
+                const ll = m.getLatLng();
+                const key = `${ll.lat.toFixed(6)},${ll.lng.toFixed(6)}`;
+                if (!coordCounts[key]) {
+                    coordCounts[key] = { lat: ll.lat, lng: ll.lng, count: 0 };
+                }
+                coordCounts[key].count++;
+            });
+
+            Object.values(coordCounts).forEach(item => {
+                if (item.count > 40) {
+                    const circle = L.circle([item.lat, item.lng], {
+                        color: '#e74c3c',
+                        fillColor: '#ff0000',
+                        fillOpacity: 0.6,
+                        radius: 80,
+                        stroke: true,
+                        weight: 2
+                    });
+                    circle.bindPopup(`<b>Gorący punkt!</b><br>Liczba nakładających się punktów: <b>${item.count}</b>`);
+                    hotspotsLayerGroup.addLayer(circle);
+                }
+            });
+        }
 
         function saveCurrentEdits() {
             if (!isEditing) return;
@@ -1521,7 +1566,7 @@
                 }
             });
 
-            if (newMarkers.length > 0 && areAllPointsVisible) {
+            if (newMarkers.length > 0) {
                 markersClusterGroup.addLayers(newMarkers);
             }
 
@@ -1613,9 +1658,7 @@
                 }
             });
 
-            if (areAllPointsVisible) {
-                markersClusterGroup.addLayers(newMarkers);
-            }
+            markersClusterGroup.addLayers(newMarkers);
             return newMarkers.length;
         }
 
@@ -1692,10 +1735,27 @@
 
             document.getElementById('unassignedCount').innerText = unassignedCount;
 
-            if (showOnlyUnassigned && areAllPointsVisible) filterUnassignedMarkers();
+            updateVisibleMarkersOnMap();
+            updateHotspots();
+
             if (typeof updateFilteredPointsList === 'function') {
                 updateFilteredPointsList();
             }     
+        }
+
+        function updateVisibleMarkersOnMap() {
+            let visibleMarkers = allMarkers;
+
+            if (showOnlyUnassigned) {
+                visibleMarkers = visibleMarkers.filter(m => !m.isAssigned);
+            }
+
+            if (hiddenRegionsSet.size > 0) {
+                visibleMarkers = visibleMarkers.filter(m => !m.isAssigned || !hiddenRegionsSet.has(m.assignedRegionName));
+            }
+
+            markersClusterGroup.clearLayers();
+            markersClusterGroup.addLayers(visibleMarkers);
         }
 
         const toggleUnassignedBtn = document.getElementById('toggleUnassignedBtn');
@@ -1703,39 +1763,32 @@
             showOnlyUnassigned = !showOnlyUnassigned;
             if (showOnlyUnassigned) {
                 toggleUnassignedBtn.innerText = 'Pokaż wszystkie';
-                filterUnassignedMarkers();
             } else {
                 toggleUnassignedBtn.innerText = 'Pokaż nieprzypisane';
-                if (areAllPointsVisible) {
-                    markersClusterGroup.clearLayers();
-                    markersClusterGroup.addLayers(allMarkers);
-                }
             }
+            updateVisibleMarkersOnMap();
         });
 
-        // PRZYCISK W PRAWYM PANELU BOCZNYM: UKRYJ/ODKRYJ PUNKTY
-        const toggleAllPointsVisibilityBtn = document.getElementById('toggleAllPointsVisibilityBtn');
-        toggleAllPointsVisibilityBtn.addEventListener('click', () => {
-            areAllPointsVisible = !areAllPointsVisible;
-            if (areAllPointsVisible) {
-                toggleAllPointsVisibilityBtn.innerText = '👁️ Ukryj punkty';
-                if (showOnlyUnassigned) {
-                    filterUnassignedMarkers();
-                } else {
-                    markersClusterGroup.clearLayers();
-                    markersClusterGroup.addLayers(allMarkers);
-                }
+        // PRZYCISK NA PRAWYM PANELU BOCZNYM DO UKRYWANIA/ODKRYWANIA WSZYSTKICH PUNKTÓW NA RAZ
+        const toggleAllPointsSidebarBtn = document.getElementById('toggleAllPointsSidebarBtn');
+        toggleAllPointsSidebarBtn.addEventListener('click', () => {
+            const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            const allRegionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy')));
+
+            const areAllHidden = allRegionNames.length > 0 && allRegionNames.every(name => hiddenRegionsSet.has(name));
+
+            if (areAllHidden) {
+                hiddenRegionsSet.clear();
             } else {
-                toggleAllPointsVisibilityBtn.innerText = '👁️ Odkryj punkty';
-                markersClusterGroup.clearLayers();
+                allRegionNames.forEach(name => hiddenRegionsSet.add(name));
             }
+
+            rebuildRegionsListUI();
+            updateVisibleMarkersOnMap();
         });
 
         function filterUnassignedMarkers() {
-            if (!areAllPointsVisible) return;
-            const unassigned = allMarkers.filter(m => !m.isAssigned);
-            markersClusterGroup.clearLayers();
-            markersClusterGroup.addLayers(unassigned);
+            updateVisibleMarkersOnMap();
         }
 
         // --- OBSŁUGA MODALA I MASOWEGO PRZYPISYWANIA BŁĘDNYCH PUNKTÓW ---
@@ -1801,7 +1854,8 @@
                 groups[title].push(m);
             });
 
-            const regionNames = getSortedRegionNames();
+            const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            const regionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy'))).sort((a, b) => a.localeCompare(b, 'pl'));
 
             const container = document.getElementById('unassignedGroupsList');
             container.innerHTML = '';
@@ -1935,7 +1989,7 @@
             unassignedModal.style.display = 'none';
         }
 
-        // --- OPTYMALIZOWANA OBSŁUGA MODALA ZARZĄDZANIA WSZYSTKIMI PUNKTAMI ---
+        // --- OPTYMALIZOWANA OBSŁUGA MODALA ZARZĄDZANIA WSZYSTKIMI PUNKTAMI (Z WIRTUALIZACJĄ/PAGINACJĄ) ---
         const openAllPointsModalBtn = document.getElementById('openAllPointsModalBtn');
         const closeAllPointsModalBtn = document.getElementById('closeAllPointsModalBtn');
         const allPointsModal = document.getElementById('allPointsModal');
@@ -1999,7 +2053,8 @@
                 return;
             }
 
-            modalRegionNames = getSortedRegionNames();
+            const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            modalRegionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy'))).sort((a, b) => a.localeCompare(b, 'pl'));
 
             const currentFilterRegion = filterAllPointsRegionSelect ? filterAllPointsRegionSelect.value : 'ALL';
             if (filterAllPointsRegionSelect) {
@@ -2035,6 +2090,7 @@
                 const rawRegion = item.assignedRegion;
 
                 const matchesQuery = !query || title.includes(query);
+
                 let matchesRegion = true;
 
                 if (selectedRegion === 'UNASSIGNED') {
@@ -2108,10 +2164,6 @@
                     const marker = allMarkers[idx];
                     if (marker) {
                         marker.markerTitle = newTitle;
-                        // Poprawka pozostawiania przycisków w popupie
-                        if (marker.getPopup() && marker.getPopup().isOpen()) {
-                            marker.openPopup();
-                        }
                         item.title = newTitle;
                         saveMarkersToLocalStorage();
                     }
@@ -2199,10 +2251,9 @@
                 groups[name].push(layer);
             });
 
-            // Sortowanie alfabetyczne nazw rejonów na prawym panelu
-            const sortedNames = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'pl'));
+            const sortedRegionNames = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'pl'));
 
-            sortedNames.forEach(name => {
+            sortedRegionNames.forEach(name => {
                 const groupLayers = groups[name];
                 const mainColor = groupLayers[0].regionColor || '#3388ff';
                 const card = createRegionCardGroup(name, groupLayers, mainColor);
@@ -2220,6 +2271,8 @@
                 card.classList.add('selected');
             }
 
+            const isPointsHidden = hiddenRegionsSet.has(name);
+
             card.innerHTML = `
                 <div class="region-card-header">
                     <input type="text" class="region-title-input" value="${escapeXml(name)}">
@@ -2235,6 +2288,7 @@
                         <span>Kolor</span>
                     </div>
                     <button class="btn btn-zoom">🔍 Wyśrodkuj</button>
+                    <button class="btn btn-toggle-points">${isPointsHidden ? '👁️ Pokaż punkty' : '👁️ Ukryj punkty'}</button>
                     <button class="btn btn-delete">🗑️</button>
                 </div>
             `;
@@ -2242,7 +2296,8 @@
             card.addEventListener('click', (evt) => {
                 if (!evt.target.classList.contains('region-title-input') && 
                     !evt.target.classList.contains('color-picker') && 
-                    !evt.target.classList.contains('btn-delete')) {
+                    !evt.target.classList.contains('btn-delete') &&
+                    !evt.target.classList.contains('btn-toggle-points')) {
                     selectRegion(groupLayers[0]);
                 }
             });
@@ -2251,6 +2306,10 @@
             titleInput.addEventListener('focus', () => recordState());
             titleInput.addEventListener('change', () => {
                 const newName = titleInput.value.trim() || 'Bez nazwy';
+                if (hiddenRegionsSet.has(name)) {
+                    hiddenRegionsSet.delete(name);
+                    hiddenRegionsSet.add(newName);
+                }
                 groupLayers.forEach(l => {
                     l.regionName = newName;
                 });
@@ -2279,10 +2338,23 @@
                 selectRegion(groupLayers[0]);
             });
 
+            card.querySelector('.btn-toggle-points').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (hiddenRegionsSet.has(name)) {
+                    hiddenRegionsSet.delete(name);
+                    e.target.innerText = '👁️ Ukryj punkty';
+                } else {
+                    hiddenRegionsSet.add(name);
+                    e.target.innerText = '👁️ Pokaż punkty';
+                }
+                updateVisibleMarkersOnMap();
+            });
+
             card.querySelector('.btn-delete').addEventListener('click', (e) => {
                 e.stopPropagation();
                 recordState();
 
+                hiddenRegionsSet.delete(name);
                 if (selectedLayer && selectedLayer.regionName === name) selectRegion(null);
                 groupLayers.forEach(l => drawnItems.removeLayer(l));
                 card.remove();
@@ -2365,9 +2437,7 @@
                         newMarkers.push(m);
                         allMarkers.push(m);
                     });
-                    if (areAllPointsVisible) {
-                        markersClusterGroup.addLayers(newMarkers);
-                    }
+                    markersClusterGroup.addLayers(newMarkers);
                 } catch (err) {
                     console.error("Błąd wczytywania punktów z localStorage:", err);
                 }
@@ -2390,27 +2460,18 @@
                 localStorage.removeItem('saved_map_markers');
                 localStorage.removeItem('saved_map_month');
                 localStorage.removeItem('saved_map_year');
-
                 drawnItems.clearLayers();
                 markersClusterGroup.clearLayers();
                 allMarkers = [];
                 processedFilesSet.clear();
+                hiddenRegionsSet.clear();
 
-                selectRegion(null);
                 rebuildRegionsListUI();
                 recalculateAllStats();
-
-                const statusEl = document.getElementById('status');
-                if (statusEl) statusEl.innerText = '';
-                const fileQueueBox = document.getElementById('fileQueueBox');
-                if (fileQueueBox) fileQueueBox.innerHTML = '';
-                const queueToggleHeader = document.getElementById('queueToggleHeader');
-                if (queueToggleHeader) queueToggleHeader.style.display = 'none';
-
-                alert('Dane zostały usunięte.');
             }
         });
 
+        // INICJALIZACJA DANYCH
         loadFromLocalStorage();
     </script>
 </body>
