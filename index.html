@@ -1172,6 +1172,11 @@
 
                     btnGeocodeAllLoc.addEventListener('click', async () => {
                         btnGeocodeAllLoc.disabled = true;
+                        
+                        // Zabezpieczenie przed przysłonięciem gradientu przez domyślny styl :disabled w przeglądarce
+                        btnGeocodeAllLoc.style.opacity = '1';
+                        btnGeocodeAllLoc.style.color = '#ffffff';
+                        btnGeocodeAllLoc.style.cursor = 'wait';
 
                         recordState();
                         let countSuccess = 0;
