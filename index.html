@@ -274,7 +274,7 @@
             justify-content: center; align-items: center;
         }
         .modal-card {
-            background: white; border-radius: 8px; width: 680px; max-height: 85vh;
+            background: white; border-radius: 8px; width: 750px; max-height: 85vh;
             display: flex; flex-direction: column; padding: 18px; box-shadow: 0 5px 20px rgba(0,0,0,0.4);
         }
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #dee2e6; padding-bottom: 10px; }
@@ -291,18 +291,25 @@
         .btn-batch-assign { background: #8e44ad; color: white; border: none; padding: 5px 10px; font-size: 11px; border-radius: 4px; font-weight: bold; cursor: pointer; }
         .btn-batch-assign:hover { background: #732d91; }
 
+        .point-stats-summary {
+            background: #e3f2fd; border: 1px solid #bbdefb; border-radius: 6px;
+            padding: 6px 12px; margin-top: 8px; display: flex; justify-content: space-around;
+            align-items: center; font-size: 12px; color: #1e293b; font-weight: bold;
+        }
+
         .group-item {
-            background: #f8f9fa; border: 1px solid #e9ecef; padding: 10px 12px;
-            margin-bottom: 8px; border-radius: 6px; display: flex; justify-content: space-between;
+            background: #f8f9fa; border: 1px solid #e9ecef; padding: 8px 10px;
+            margin-bottom: 6px; border-radius: 6px; display: flex; justify-content: space-between;
             align-items: center; gap: 10px;
         }
-        .group-info { font-size: 12px; color: #2c3e50; word-break: break-word; flex: 1; }
-        .group-info b { font-size: 13px; display: block; margin-bottom: 2px; }
+        .group-info { font-size: 12px; color: #2c3e50; word-break: break-word; flex: 1; display: flex; align-items: center; gap: 8px; }
+        .point-name-input { font-size: 12px; border: 1px solid #ced4da; border-radius: 4px; padding: 4px 8px; flex: 1; font-weight: bold; color: #2c3e50; }
+        .point-name-input:focus { border-color: #3498db; outline: none; background: #fff; }
         .group-controls { display: flex; gap: 6px; align-items: center; }
         .group-controls select { padding: 4px 6px; font-size: 11px; border: 1px solid #ced4da; border-radius: 4px; max-width: 160px; }
         .btn-assign-group { background: #27ae60; color: white; border: none; padding: 5px 10px; font-size: 11px; border-radius: 4px; font-weight: bold; cursor: pointer; }
         .btn-assign-group:hover { background: #219653; }
-        .region-badge { font-weight: normal; font-size: 11px; background: #e2e8f0; color: #334155; padding: 1px 6px; border-radius: 3px; margin-left: 6px; }
+        .region-badge { font-weight: normal; font-size: 11px; background: #e2e8f0; color: #334155; padding: 2px 6px; border-radius: 3px; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -438,17 +445,24 @@
                 <button class="btn-close-modal" id="closeAllPointsModalBtn">✖</button>
             </div>
             
-            <!-- POLE WYSZUKIWANIA I SORTOWANIE -->
-            <div style="padding: 10px 0 0 0; display: flex; gap: 8px;">
-                <input type="text" id="searchAllPointsInput" placeholder="🔍 Szukaj ulicy / nazwy..." style="flex: 1; padding: 8px 10px; font-size: 12px; border: 1px solid #ced4da; border-radius: 4px;">
-                <select id="sortAllPointsSelect" style="padding: 8px 10px; font-size: 12px; border: 1px solid #ced4da; border-radius: 4px; background: white;">
+            <!-- FILTROWANIE, POLE WYSZUKIWANIA I SORTOWANIE -->
+            <div style="padding: 10px 0 0 0; display: flex; gap: 8px; flex-wrap: wrap;">
+                <select id="filterAllPointsRegionSelect" style="padding: 8px 10px; font-size: 12px; border: 1px solid #ced4da; border-radius: 4px; background: white; flex: 1; min-width: 150px;">
+                    <!-- Opcje rejonów wygenerowane dynamicznie -->
+                </select>
+                <input type="text" id="searchAllPointsInput" placeholder="🔍 Szukaj ulicy / nazwy..." style="flex: 2; padding: 8px 10px; font-size: 12px; border: 1px solid #ced4da; border-radius: 4px; min-width: 180px;">
+                <select id="sortAllPointsSelect" style="padding: 8px 10px; font-size: 12px; border: 1px solid #ced4da; border-radius: 4px; background: white; flex: 1; min-width: 130px;">
                     <option value="name-asc">Nazwa (A-Z)</option>
                     <option value="name-desc">Nazwa (Z-A)</option>
                     <option value="region-asc">Rejon (A-Z)</option>
                     <option value="region-desc">Rejon (Z-A)</option>
-                    <option value="count-desc">Liczba punktów w grupie (malejąco)</option>
-                    <option value="count-asc">Liczba punktów w grupie (rosnąco)</option>
                 </select>
+            </div>
+
+            <!-- PASEK STATYSTYK WIDOCZNYCH PUNKTÓW -->
+            <div class="point-stats-summary">
+                <span>Liczba widocznych punktów: <b id="modalVisibleCount">0</b></span>
+                <span>Średnia / dzień (dni robocze: <span id="modalWorkdaysCount">0</span>): <b id="modalVisiblePerDay">0</b></span>
             </div>
 
             <!-- PASEK MASOWEGO PRZENOSZENIA Z WYNIKÓW WYSZUKIWANIA -->
@@ -459,7 +473,7 @@
             </div>
 
             <div id="allPointsGroupsList" class="modal-body">
-                <!-- Grupy punktów generowane dynamicznie -->
+                <!-- Punkty generowane dynamicznie bez grupowania -->
             </div>
         </div>
     </div>
@@ -864,7 +878,7 @@
             const updatePopupContent = () => {
                 const popupContainer = document.createElement('div');
                 popupContainer.style.minWidth = '180px';
-                popupContainer.innerHTML = `<b>${escapeXml(title)}</b><br>`;
+                popupContainer.innerHTML = `<b>${escapeXml(marker.markerTitle)}</b><br>`;
 
                 // OPCJA 1: Wybór rejonu do przypisania
                 const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
@@ -913,13 +927,13 @@
                     btnGeocode.innerText = '⏳ Szukanie...';
                     btnGeocode.disabled = true;
 
-                    const newLatLng = await geocodeAddressLive(title, marker.getLatLng());
+                    const newLatLng = await geocodeAddressLive(marker.markerTitle, marker.getLatLng());
                     if (newLatLng) {
                         recordState();
                         marker.setLatLng(newLatLng);
                         recalculateAllStats();
                         saveToLocalStorage();
-                        alert(`Znaleziono nową lokalizację dla: "${title}"`);
+                        alert(`Znaleziono nową lokalizację dla: "${marker.markerTitle}"`);
                         marker.closePopup();
                     } else {
                         alert(`Nie udało się odnaleźć punktu w geokoderze.`);
@@ -1879,11 +1893,12 @@
             unassignedModal.style.display = 'none';
         }
 
-        // --- OBSŁUGA MODALA ZARZĄDZANIA WSZYSTKIMI PUNKTAMI ---
+        // --- OBSŁUGA MODALA ZARZĄDZANIA WSZYSTKIMI PUNKTAMI Z BEZPOŚREDNIĄ EDYCJĄ NAZWY I STATYSTYKAMI ---
         const openAllPointsModalBtn = document.getElementById('openAllPointsModalBtn');
         const closeAllPointsModalBtn = document.getElementById('closeAllPointsModalBtn');
         const allPointsModal = document.getElementById('allPointsModal');
         const searchAllPointsInput = document.getElementById('searchAllPointsInput');
+        const filterAllPointsRegionSelect = document.getElementById('filterAllPointsRegionSelect');
         const sortAllPointsSelect = document.getElementById('sortAllPointsSelect');
         const batchMoveRegionSelect = document.getElementById('batchMoveRegionSelect');
         const btnBatchMove = document.getElementById('btnBatchMove');
@@ -1891,20 +1906,16 @@
         if (openAllPointsModalBtn) openAllPointsModalBtn.addEventListener('click', openAllPointsModal);
         if (closeAllPointsModalBtn) closeAllPointsModalBtn.addEventListener('click', closeAllPointsModal);
 
-        if (searchAllPointsInput) {
-            searchAllPointsInput.addEventListener('input', filterAllPointsGroups);
-        }
-
-        if (sortAllPointsSelect) {
-            sortAllPointsSelect.addEventListener('change', openAllPointsModal);
-        }
+        if (searchAllPointsInput) searchAllPointsInput.addEventListener('input', filterAllPointsGroups);
+        if (filterAllPointsRegionSelect) filterAllPointsRegionSelect.addEventListener('change', filterAllPointsGroups);
+        if (sortAllPointsSelect) sortAllPointsSelect.addEventListener('change', openAllPointsModal);
 
         if (btnBatchMove) {
             btnBatchMove.addEventListener('click', async () => {
-                const visibleGroups = Array.from(document.querySelectorAll('#allPointsGroupsList .group-item'))
+                const visibleItems = Array.from(document.querySelectorAll('#allPointsGroupsList .group-item'))
                     .filter(item => item.style.display !== 'none');
 
-                if (visibleGroups.length === 0) {
+                if (visibleItems.length === 0) {
                     alert('Brak widocznych wyników do przeniesienia!');
                     return;
                 }
@@ -1918,10 +1929,11 @@
                 btnBatchMove.innerText = '⏳ Przenoszenie...';
                 btnBatchMove.disabled = true;
 
-                for (const item of visibleGroups) {
-                    const title = item.getAttribute('data-raw-title');
-                    if (title) {
-                        await moveGroupToRegion(title, targetRegion);
+                for (const item of visibleItems) {
+                    const markerIndex = parseInt(item.getAttribute('data-marker-index'));
+                    const marker = allMarkers[markerIndex];
+                    if (marker) {
+                        await moveSingleMarkerToRegion(marker, targetRegion);
                     }
                 }
 
@@ -1936,21 +1948,20 @@
                 return;
             }
 
-            const groups = {};
-            allMarkers.forEach(m => {
-                const title = m.markerTitle || 'Brak nazwy/adresu';
-                if (!groups[title]) {
-                    groups[title] = {
-                        title: title,
-                        markers: [],
-                        assignedRegion: m.assignedRegionName || 'Nieprzypisany'
-                    };
-                }
-                groups[title].markers.push(m);
-            });
-
             const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
             const regionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy')));
+
+            // Wypełnienie listy filtrowania rejonów
+            const currentFilterRegion = filterAllPointsRegionSelect ? filterAllPointsRegionSelect.value : 'ALL';
+            if (filterAllPointsRegionSelect) {
+                let optionsHtml = '<option value="ALL">Wszystkie rejony</option>';
+                optionsHtml += '<option value="UNASSIGNED">Nieprzypisany</option>';
+                regionNames.forEach(r => {
+                    optionsHtml += `<option value="${escapeXml(r)}">${escapeXml(r)}</option>`;
+                });
+                filterAllPointsRegionSelect.innerHTML = optionsHtml;
+                filterAllPointsRegionSelect.value = currentFilterRegion && Array.from(filterAllPointsRegionSelect.options).some(o => o.value === currentFilterRegion) ? currentFilterRegion : 'ALL';
+            }
 
             const container = document.getElementById('allPointsGroupsList');
             container.innerHTML = '';
@@ -1964,55 +1975,80 @@
             }
 
             const sortMode = sortAllPointsSelect ? sortAllPointsSelect.value : 'name-asc';
-            let sortedGroupKeys = Object.keys(groups);
+            
+            // Przygotowanie niezgrupowanej listy punktów
+            let indexedMarkers = allMarkers.map((m, idx) => ({
+                marker: m,
+                index: idx,
+                title: m.markerTitle || 'Brak nazwy/adresu',
+                assignedRegion: m.assignedRegionName || 'Nieprzypisany'
+            }));
 
-            sortedGroupKeys.sort((a, b) => {
-                const grpA = groups[a];
-                const grpB = groups[b];
-
-                if (sortMode === 'name-asc') return grpA.title.localeCompare(grpB.title, 'pl');
-                if (sortMode === 'name-desc') return grpB.title.localeCompare(grpA.title, 'pl');
-                if (sortMode === 'region-asc') return grpA.assignedRegion.localeCompare(grpB.assignedRegion, 'pl');
-                if (sortMode === 'region-desc') return grpB.assignedRegion.localeCompare(grpA.assignedRegion, 'pl');
-                if (sortMode === 'count-desc') return grpB.markers.length - grpA.markers.length;
-                if (sortMode === 'count-asc') return grpA.markers.length - grpB.markers.length;
+            indexedMarkers.sort((a, b) => {
+                if (sortMode === 'name-asc') return a.title.localeCompare(b.title, 'pl');
+                if (sortMode === 'name-desc') return b.title.localeCompare(a.title, 'pl');
+                if (sortMode === 'region-asc') return a.assignedRegion.localeCompare(b.assignedRegion, 'pl');
+                if (sortMode === 'region-desc') return b.assignedRegion.localeCompare(a.assignedRegion, 'pl');
                 return 0;
             });
 
-            sortedGroupKeys.forEach((groupTitle, idx) => {
-                const grp = groups[groupTitle];
+            indexedMarkers.forEach((item) => {
                 const div = document.createElement('div');
                 div.className = 'group-item';
-                div.setAttribute('data-group-title', groupTitle.toLowerCase());
-                div.setAttribute('data-group-region', grp.assignedRegion.toLowerCase());
-                div.setAttribute('data-raw-title', groupTitle);
+                div.setAttribute('data-group-title', item.title.toLowerCase());
+                div.setAttribute('data-group-region', item.assignedRegion.toLowerCase());
+                div.setAttribute('data-raw-region', item.assignedRegion);
+                div.setAttribute('data-marker-index', item.index);
                 
-                const optionsHtml = regionNames.map(r => `<option value="${escapeXml(r)}" ${r === grp.assignedRegion ? 'selected' : ''}>${escapeXml(r)}</option>`).join('');
+                const optionsHtml = regionNames.map(r => `<option value="${escapeXml(r)}" ${r === item.assignedRegion ? 'selected' : ''}>${escapeXml(r)}</option>`).join('');
 
                 div.innerHTML = `
                     <div class="group-info">
-                        <b>${escapeXml(groupTitle)} <span class="region-badge">📍 ${escapeXml(grp.assignedRegion)}</span></b>
-                        <span>Liczba punktów w grupie: ${grp.markers.length}</span>
+                        <input type="text" class="point-name-input" value="${escapeXml(item.title)}" data-marker-index="${item.index}" title="Kliknij, aby zmienić nazwę punktu">
+                        <span class="region-badge">📍 ${escapeXml(item.assignedRegion)}</span>
                     </div>
                     <div class="group-controls">
-                        <select id="select-all-group-${idx}">
+                        <select id="select-single-marker-${item.index}">
                             ${optionsHtml}
                         </select>
-                        <button class="btn-assign-group" data-group-title="${escapeXml(groupTitle)}" data-select-id="select-all-group-${idx}">Przenieś</button>
+                        <button class="btn-assign-group" data-marker-index="${item.index}" data-select-id="select-single-marker-${item.index}">Przenieś</button>
                     </div>
                 `;
                 container.appendChild(div);
             });
 
+            // Obsługa edycji nazw punktów
+            container.querySelectorAll('.point-name-input').forEach(input => {
+                input.addEventListener('focus', () => recordState());
+                input.addEventListener('change', (e) => {
+                    const idx = parseInt(e.target.getAttribute('data-marker-index'));
+                    const newTitle = e.target.value.trim() || 'Punkt';
+                    const marker = allMarkers[idx];
+                    if (marker) {
+                        marker.markerTitle = newTitle;
+                        if (marker.getPopup()) {
+                            marker.getPopup().setContent(newTitle);
+                        }
+                        const parentItem = e.target.closest('.group-item');
+                        if (parentItem) {
+                            parentItem.setAttribute('data-group-title', newTitle.toLowerCase());
+                        }
+                        saveMarkersToLocalStorage();
+                    }
+                });
+            });
+
+            // Obsługa przenoszenia pojedynczego punktu
             container.querySelectorAll('.btn-assign-group').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
-                    const title = e.target.getAttribute('data-group-title');
+                    const idx = parseInt(e.target.getAttribute('data-marker-index'));
                     const selectId = e.target.getAttribute('data-select-id');
                     const selectEl = document.getElementById(selectId);
-                    if (selectEl) {
+                    const marker = allMarkers[idx];
+                    if (selectEl && marker) {
                         e.target.innerText = '⏳...';
                         e.target.disabled = true;
-                        await moveGroupToRegion(title, selectEl.value);
+                        await moveSingleMarkerToRegion(marker, selectEl.value);
                     }
                 });
             });
@@ -2023,20 +2059,43 @@
 
         function filterAllPointsGroups() {
             const query = searchAllPointsInput ? searchAllPointsInput.value.toLowerCase().trim() : '';
-            const groupItems = document.querySelectorAll('#allPointsGroupsList .group-item');
+            const selectedRegion = filterAllPointsRegionSelect ? filterAllPointsRegionSelect.value : 'ALL';
+            const items = document.querySelectorAll('#allPointsGroupsList .group-item');
 
-            groupItems.forEach(item => {
+            let visibleCount = 0;
+
+            items.forEach(item => {
                 const title = item.getAttribute('data-group-title') || '';
                 const region = item.getAttribute('data-group-region') || '';
-                if (title.includes(query) || region.includes(query)) {
+                const rawRegion = item.getAttribute('data-raw-region') || '';
+
+                const matchesQuery = title.includes(query) || region.includes(query);
+                let matchesRegion = true;
+
+                if (selectedRegion === 'UNASSIGNED') {
+                    matchesRegion = (rawRegion === 'Nieprzypisany');
+                } else if (selectedRegion !== 'ALL') {
+                    matchesRegion = (rawRegion === selectedRegion);
+                }
+
+                if (matchesQuery && matchesRegion) {
                     item.style.display = 'flex';
+                    visibleCount++;
                 } else {
                     item.style.display = 'none';
                 }
             });
+
+            // Dynamiczna zmiana podsumowania w modalnym oknie
+            const modalWorkdays = parseInt(workdaysCountEl.innerText) || 0;
+            const perDay = modalWorkdays > 0 ? Math.round(visibleCount / modalWorkdays) : 0;
+
+            document.getElementById('modalVisibleCount').innerText = visibleCount;
+            document.getElementById('modalWorkdaysCount').innerText = modalWorkdays;
+            document.getElementById('modalVisiblePerDay').innerText = perDay;
         }
 
-        async function moveGroupToRegion(groupTitle, targetRegionName) {
+        async function moveSingleMarkerToRegion(marker, targetRegionName) {
             const targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === targetRegionName);
             
             if (!targetLayer) {
@@ -2047,10 +2106,7 @@
             recordState();
 
             const geoJson = targetLayer.toGeoJSON();
-            const groupMarkers = allMarkers.filter(m => (m.markerTitle || 'Brak nazwy/adresu') === groupTitle);
-            
-            const refLatLng = groupMarkers.length > 0 ? groupMarkers[0].getLatLng() : null;
-            let liveLatLng = await geocodeAddressLive(groupTitle, refLatLng);
+            const liveLatLng = await geocodeAddressLive(marker.markerTitle, marker.getLatLng());
             let useLiveGeocode = false;
 
             if (liveLatLng) {
@@ -2061,15 +2117,11 @@
             }
 
             if (useLiveGeocode && liveLatLng) {
-                groupMarkers.forEach(m => {
-                    m.setLatLng(liveLatLng);
-                });
+                marker.setLatLng(liveLatLng);
             } else {
                 const pointInside = turf.pointOnFeature(geoJson);
                 const interiorLatLng = L.latLng(pointInside.geometry.coordinates[1], pointInside.geometry.coordinates[0]);
-                groupMarkers.forEach(m => {
-                    m.setLatLng(interiorLatLng);
-                });
+                marker.setLatLng(interiorLatLng);
             }
 
             recalculateAllStats();
