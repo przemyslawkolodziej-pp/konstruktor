@@ -1171,13 +1171,21 @@
                     btnGeocodeAllLoc.innerText = `🌐 Geokoduj wszystkie punkty z tej lokalizacji (${sameLocMarkers.length})`;
 
                     btnGeocodeAllLoc.addEventListener('click', async () => {
-                        btnGeocodeAllLoc.innerText = '⏳ Masowe geokodowanie...';
                         btnGeocodeAllLoc.disabled = true;
 
                         recordState();
                         let countSuccess = 0;
+                        const totalMarkers = sameLocMarkers.length;
 
-                        for (const m of sameLocMarkers) {
+                        for (let i = 0; i < totalMarkers; i++) {
+                            const m = sameLocMarkers[i];
+                            const currentStep = i + 1;
+                            const percent = Math.round((currentStep / totalMarkers) * 100);
+
+                            // Aktualizacja tekstu i zielonego tła postępu na żywo
+                            btnGeocodeAllLoc.innerText = `⏳ Geokodowanie (${currentStep}/${totalMarkers})... ${percent}%`;
+                            btnGeocodeAllLoc.style.background = `linear-gradient(to right, #27ae60 ${percent}%, #d35400 ${percent}%)`;
+
                             let targetLayer = null;
                             if (m.assignedRegionName && m.assignedRegionName !== 'Nieprzypisany') {
                                 targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === m.assignedRegionName);
@@ -1207,7 +1215,7 @@
 
                         recalculateAllStats();
                         saveToLocalStorage();
-                        alert(`Zakończono masowe geokodowanie. Przeniesiono ${countSuccess} z ${sameLocMarkers.length} punktów.`);
+                        alert(`Zakończono masowe geokodowanie. Przeniesiono ${countSuccess} z ${totalMarkers} punktów.`);
                         circle.closePopup();
                     });
 
