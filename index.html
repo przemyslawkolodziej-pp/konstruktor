@@ -303,7 +303,7 @@
 
         .point-stats-summary {
             background: #e3f2fd; border: 1px solid #bbdefb; border-radius: 6px;
-            padding: 6px 12px; margin-top: 8px; display: flex; justify-around: space-around;
+            padding: 6px 12px; margin-top: 8px; display: flex; justify-content: space-around;
             align-items: center; font-size: 12px; color: #1e293b; font-weight: bold;
         }
 
@@ -427,7 +427,6 @@
                 <button class="btn-close-modal" id="closeUnassignedModalBtn">✖</button>
             </div>
             
-            <!-- POLE WYSZUKIWANIA I SORTOWANIE -->
             <div style="padding: 10px 0 0 0; display: flex; gap: 8px;">
                 <input type="text" id="searchUnassignedGroupsInput" placeholder="🔍 Szukaj ulicy / nazwy..." style="flex: 1; padding: 8px 10px; font-size: 12px; border: 1px solid #ced4da; border-radius: 4px;">
                 <select id="sortUnassignedGroupsSelect" style="padding: 8px 10px; font-size: 12px; border: 1px solid #ced4da; border-radius: 4px; background: white;">
@@ -438,16 +437,13 @@
                 </select>
             </div>
 
-            <!-- PASEK MASOWEGO PRZYPISYWANIA Z WYNIKÓW WYSZUKIWANIA -->
             <div id="batchAssignPanel" class="batch-assign-panel">
                 <span style="font-size: 11px; font-weight: bold; color: #2c3e50;">Przypisz wszystkie widoczne z wyszukiwania do:</span>
                 <select id="batchRegionSelect"></select>
                 <button id="btnBatchAssign" class="btn-batch-assign">⚡ Przypisz wszystkie</button>
             </div>
 
-            <div id="unassignedGroupsList" class="modal-body">
-                <!-- Grupy punktów generowane dynamicznie -->
-            </div>
+            <div id="unassignedGroupsList" class="modal-body"></div>
         </div>
     </div>
 
@@ -459,11 +455,8 @@
                 <button class="btn-close-modal" id="closeAllPointsModalBtn">✖</button>
             </div>
             
-            <!-- FILTROWANIE, POLE WYSZUKIWANIA I SORTOWANIE -->
             <div style="padding: 10px 0 0 0; display: flex; gap: 8px; flex-wrap: wrap;">
-                <select id="filterAllPointsRegionSelect" style="padding: 8px 10px; font-size: 12px; border: 1px solid #ced4da; border-radius: 4px; background: white; flex: 1; min-width: 150px;">
-                    <!-- Opcje rejonów wygenerowane dynamicznie -->
-                </select>
+                <select id="filterAllPointsRegionSelect" style="padding: 8px 10px; font-size: 12px; border: 1px solid #ced4da; border-radius: 4px; background: white; flex: 1; min-width: 150px;"></select>
                 <input type="text" id="searchAllPointsInput" placeholder="🔍 Szukaj ulicy / nazwy..." style="flex: 2; padding: 8px 10px; font-size: 12px; border: 1px solid #ced4da; border-radius: 4px; min-width: 180px;">
                 <select id="sortAllPointsSelect" style="padding: 8px 10px; font-size: 12px; border: 1px solid #ced4da; border-radius: 4px; background: white; flex: 1; min-width: 130px;">
                     <option value="name-asc">Nazwa (A-Z)</option>
@@ -473,22 +466,18 @@
                 </select>
             </div>
 
-            <!-- PASEK STATYSTYK WIDOCZNYCH PUNKTÓW -->
             <div class="point-stats-summary">
                 <span>Liczba widocznych punktów: <b id="modalVisibleCount">0</b></span>
                 <span>Średnia / dzień (dni robocze: <span id="modalWorkdaysCount">0</span>): <b id="modalVisiblePerDay">0</b></span>
             </div>
 
-            <!-- PASEK MASOWEGO PRZENOSZENIA Z WYNIKÓW WYSZUKIWANIA -->
             <div id="batchMovePanel" class="batch-assign-panel">
                 <span style="font-size: 11px; font-weight: bold; color: #2c3e50;">Przenieś wszystkie widoczne z wyszukiwania do:</span>
                 <select id="batchMoveRegionSelect"></select>
                 <button id="btnBatchMove" class="btn-batch-assign">⚡ Przenieś wszystkie</button>
             </div>
 
-            <div id="allPointsGroupsList" class="modal-body">
-                <!-- Punkty generowane dynamicznie bez grupowania -->
-            </div>
+            <div id="allPointsGroupsList" class="modal-body"></div>
         </div>
     </div>
 
@@ -845,8 +834,8 @@
         monthSelect.addEventListener('change', updateWorkdaysDisplay);
         yearSelect.addEventListener('change', updateWorkdaysDisplay);
 
-        // FUNKCJA POMOCNICZA DO GEOKODOWANIA NA ŻYWO (Z OGRANICZENIEM PROMIENIA LUB OBSZARU REJONU)
-        async function (addressQuery, currentLatLng = null, targetRegionLayer = null) {
+        // FUNKCJA POMOCNICZA DO GEOKODOWANIA NA ŻYWO (POPRAWIONO DEKLARACJĘ)
+        async function geocodeAddressLive(addressQuery, currentLatLng = null, targetRegionLayer = null) {
             try {
                 let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressQuery)}`;
                 
@@ -858,7 +847,7 @@
                     const maxLat = bounds.getNorth();
                     url += `&viewbox=${minLon},${maxLat},${maxLon},${minLat}&bounded=1`;
                 } else if (currentLatLng) {
-                    const delta = 0.135; // ok. 15 km w stopniach geograficznych
+                    const delta = 0.135; 
                     const minLon = currentLatLng.lng - delta;
                     const maxLon = currentLatLng.lng + delta;
                     const minLat = currentLatLng.lat - delta;
@@ -906,7 +895,6 @@
                 popupContainer.style.minWidth = '180px';
                 popupContainer.innerHTML = `<b>${escapeXml(marker.markerTitle)}</b><br>`;
 
-                // OPCJA 1: Wybór rejonu do przypisania
                 const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
                 const regionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy'))).sort((a, b) => a.localeCompare(b, 'pl', { numeric: true }));
 
@@ -943,7 +931,6 @@
                     popupContainer.appendChild(assignBox);
                 }
 
-                // OPCJA 2: Geokoduj ten punkt ponownie
                 const btnGeocode = document.createElement('button');
                 btnGeocode.className = 'btn-popup-action';
                 btnGeocode.style.backgroundColor = '#27ae60';
@@ -975,7 +962,6 @@
 
                 popupContainer.appendChild(btnGeocode);
 
-                // OPCJA 3: Usuwanie
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'btn-delete-marker';
                 deleteBtn.innerText = '🗑️ Usuń punkt';
@@ -997,7 +983,6 @@
             return marker;
         }
 
-        // PRZYPISANIE JEDNEGO MARKERA Z OBSŁUGĄ GEOKODOWANIA NA ŻYWO
         async function assignSingleMarkerToRegion(marker, targetRegionName) {
             const targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === targetRegionName);
             if (!targetLayer) return;
@@ -1007,7 +992,6 @@
             const geoJson = targetLayer.toGeoJSON();
             let assignedSuccessfully = false;
 
-            // KROK 1: Próba geokodowania na żywo i sprawdzenie czy spada w poligon
             const liveLatLng = await geocodeAddressLive(marker.markerTitle, marker.getLatLng(), targetLayer);
             if (liveLatLng) {
                 const turfLivePoint = turf.point([liveLatLng.lng, liveLatLng.lat]);
@@ -1017,7 +1001,6 @@
                 }
             }
 
-            // KROK 2: Jeśli geokodowanie zawiodło lub spada poza poligon -> fallback do centrum wnętrza
             if (!assignedSuccessfully) {
                 const pointInside = turf.pointOnFeature(geoJson);
                 const interiorLatLng = L.latLng(pointInside.geometry.coordinates[1], pointInside.geometry.coordinates[0]);
@@ -1171,52 +1154,48 @@
                     btnGeocodeAllLoc.innerText = `🌐 Geokoduj wszystkie punkty z tej lokalizacji (${sameLocMarkers.length})`;
 
                     btnGeocodeAllLoc.addEventListener('click', async () => {
-    btnGeocodeAllLoc.disabled = true;
-    
-    // Zabezpieczenie przed przysłonięciem gradientu przez domyślny styl :disabled w przeglądarce
-    btnGeocodeAllLoc.style.opacity = '1';
-    btnGeocodeAllLoc.style.color = '#ffffff';
-    btnGeocodeAllLoc.style.cursor = 'wait';
+                        btnGeocodeAllLoc.disabled = true;
+                        btnGeocodeAllLoc.style.opacity = '1';
+                        btnGeocodeAllLoc.style.color = '#ffffff';
+                        btnGeocodeAllLoc.style.cursor = 'wait';
 
-    recordState();
-    let countSuccess = 0;
-    const totalMarkers = sameLocMarkers.length;
+                        recordState();
+                        let countSuccess = 0;
+                        const totalMarkers = sameLocMarkers.length;
 
-    for (let i = 0; i < totalMarkers; i++) {
-        const m = sameLocMarkers[i];
-        const currentStep = i + 1;
-        const percent = Math.round((currentStep / totalMarkers) * 100);
+                        for (let i = 0; i < totalMarkers; i++) {
+                            const m = sameLocMarkers[i];
+                            const currentStep = i + 1;
+                            const percent = Math.round((currentStep / totalMarkers) * 100);
 
-        // Aktualizacja tekstu i zielonego tła postępu na żywo
-        btnGeocodeAllLoc.innerText = `⏳ Geokodowanie (${currentStep}/${totalMarkers})... ${percent}%`;
-        btnGeocodeAllLoc.style.background = `linear-gradient(to right, #27ae60 ${percent}%, #d35400 ${percent}%)`;
+                            btnGeocodeAllLoc.innerText = `⏳ Geokodowanie (${currentStep}/${totalMarkers})... ${percent}%`;
+                            btnGeocodeAllLoc.style.background = `linear-gradient(to right, #27ae60 ${percent}%, #d35400 ${percent}%)`;
 
-        let targetLayer = null;
-        if (m.assignedRegionName && m.assignedRegionName !== 'Nieprzypisany') {
-            targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === m.assignedRegionName);
-        }
-        
-        const newLatLng = await geocodeAddressLive(m.markerTitle, m.getLatLng(), targetLayer);
-        
-        if (newLatLng && targetLayer) {
-            const geoJson = targetLayer.toGeoJSON();
-            const turfLivePoint = turf.point([newLatLng.lng, newLatLng.lat]);
-            
-            // Punkt uznajemy za sukces tylko wtedy, gdy geokoder zwrócił pozycję znajdującą się wewnątrz rejonu
-            if (turf.booleanPointInPolygon(turfLivePoint, geoJson)) {
-                m.setLatLng(newLatLng);
-                countSuccess++;
-            }
-        }
-    }
+                            let targetLayer = null;
+                            if (m.assignedRegionName && m.assignedRegionName !== 'Nieprzypisany') {
+                                targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === m.assignedRegionName);
+                            }
+                            
+                            const newLatLng = await geocodeAddressLive(m.markerTitle, m.getLatLng(), targetLayer);
+                            
+                            if (newLatLng && targetLayer) {
+                                const geoJson = targetLayer.toGeoJSON();
+                                const turfLivePoint = turf.point([newLatLng.lng, newLatLng.lat]);
+                                
+                                if (turf.booleanPointInPolygon(turfLivePoint, geoJson)) {
+                                    m.setLatLng(newLatLng);
+                                    countSuccess++;
+                                }
+                            }
+                        }
 
-    const countRemaining = totalMarkers - countSuccess;
+                        const countRemaining = totalMarkers - countSuccess;
 
-    recalculateAllStats();
-    saveToLocalStorage();
-    alert(`Zakończono masowe geokodowanie.\n\n- Faktycznie przeniesiono: ${countSuccess} pkt.\n- Pozostało bez zmian (niezgeokodowano): ${countRemaining} pkt.`);
-    circle.closePopup();
-});
+                        recalculateAllStats();
+                        saveToLocalStorage();
+                        alert(`Zakończono masowe geokodowanie.\n\n- Faktycznie przeniesiono: ${countSuccess} pkt.\n- Pozostało bez zmian (niezgeokodowano): ${countRemaining} pkt.`);
+                        circle.closePopup();
+                    });
 
                     popupContainer.appendChild(btnGeocodeAllLoc);
                     circle.bindPopup(popupContainer);
@@ -1856,10 +1835,6 @@
             rebuildRegionsListUI();
             updateVisibleMarkersOnMap();
         });
-
-        function filterUnassignedMarkers() {
-            updateVisibleMarkersOnMap();
-        }
 
         // --- OBSŁUGA MODALA I MASOWEGO PRZYPISYWANIA BŁĘDNYCH PUNKTÓW ---
         const openUnassignedModalBtn = document.getElementById('openUnassignedModalBtn');
@@ -2513,37 +2488,86 @@
                 }
             }
 
-            if (drawnItems.getLayers().length > 0) {
-                map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
-            } else if (markersClusterGroup.getLayers().length > 0) {
-                map.fitBounds(markersClusterGroup.getBounds(), { padding: [30, 30] });
-            }
-
             updateWorkdaysDisplay();
         }
 
+        // AKCJE DLA PRZYCISKÓW EKSPORTU I RESETU
         document.getElementById('resetStorageBtn').addEventListener('click', () => {
-            if (confirm('Czy na pewno chcesz usunąć wszystkie narysowane rejony, punkty i wyczyścić pamięć podręczną?')) {
+            if (confirm('Czy na pewno chcesz wyczyścić całą mapę (usuwa wszystkie rejony i punkty)?')) {
                 recordState();
-                localStorage.removeItem('saved_map_regions');
-                localStorage.removeItem('saved_map_markers');
-                localStorage.removeItem('saved_map_month');
-                localStorage.removeItem('saved_map_year');
                 drawnItems.clearLayers();
                 markersClusterGroup.clearLayers();
                 allMarkers = [];
                 processedFilesSet.clear();
-                hiddenRegionsSet.clear();
-                selectRegion(null);
+                localStorage.removeItem('saved_map_regions');
+                localStorage.removeItem('saved_map_markers');
                 rebuildRegionsListUI();
                 recalculateAllStats();
-                document.getElementById('fileQueueBox').innerHTML = '';
-                document.getElementById('queueToggleHeader').style.display = 'none';
-                document.getElementById('fileQueueBox').style.display = 'none';
-                document.getElementById('status').innerText = 'Wyczyszczono pamięć.';
             }
         });
 
+        document.getElementById('exportKmlBtn').addEventListener('click', () => {
+            const layers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            if (layers.length === 0) {
+                alert('Brak rejonów do wyeksportowania!');
+                return;
+            }
+
+            let kml = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n`;
+            
+            layers.forEach(layer => {
+                const name = layer.regionName || 'Rejon';
+                const colorHex = layer.regionColor || '#3388ff';
+                const kmlColor = hexToKmlColor(colorHex);
+                const flat = getFlatLatLngs(layer);
+
+                kml += `  <Placemark>\n`;
+                kml += `    <name>${escapeXml(name)}</name>\n`;
+                kml += `    <Style><PolyStyle><color>7f${kmlColor.substring(2)}</color></PolyStyle><LineStyle><color>${kmlColor}</color><width>2</width></LineStyle></Style>\n`;
+                kml += `    <Polygon><outerBoundaryIs><LinearRing><coordinates>\n`;
+                
+                flat.forEach(ll => {
+                    kml += `      ${ll.lng},${ll.lat},0\n`;
+                });
+                if (flat.length > 0) {
+                    kml += `      ${flat[0].lng},${flat[0].lat},0\n`;
+                }
+
+                kml += `    </coordinates></LinearRing></outerBoundaryIs></Polygon>\n`;
+                kml += `  </Placemark>\n`;
+            });
+
+            kml += `</Document>\n</kml>`;
+
+            const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `rejony_${new Date().toISOString().slice(0,10)}.kml`;
+            a.click();
+        });
+
+        document.getElementById('exportXlsxBtn').addEventListener('click', () => {
+            if (allMarkers.length === 0) {
+                alert('Brak punktów do eksportu!');
+                return;
+            }
+
+            const workdays = parseInt(workdaysCountEl.innerText) || 1;
+            const data = allMarkers.map(m => ({
+                'Nazwa/Adres': m.markerTitle || '',
+                'Szerokość (Lat)': m.getLatLng().lat,
+                'Długość (Lng)': m.getLatLng().lng,
+                'Przypisany Rejon': m.assignedRegionName || 'Nieprzypisany'
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Punkty');
+
+            XLSX.writeFile(wb, `podsumowanie_punktow_${new Date().toISOString().slice(0,10)}.xlsx`);
+        });
+
+        // Wczytanie zapisanego stanu aplikacji przy starcie
         loadFromLocalStorage();
     </script>
 </body>
