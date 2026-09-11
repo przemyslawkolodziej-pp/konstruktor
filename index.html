@@ -412,7 +412,7 @@
                 </select>
             </div>
 
-            <!-- PASEK MASOWEGO PRZYPISYWANIA Z WYNIKÓW WYSZUKIWANIA (Pkt 3) -->
+            <!-- PASEK MASOWEGO PRZYPISYWANIA Z WYNIKÓW WYSZUKIWANIA -->
             <div id="batchAssignPanel" class="batch-assign-panel">
                 <span style="font-size: 11px; font-weight: bold; color: #2c3e50;">Przypisz wszystkie widoczne z wyszukiwania do:</span>
                 <select id="batchRegionSelect"></select>
@@ -483,7 +483,7 @@
 
         checkAuthStatus();
 
-        // LOGIKA APILKACJI MAPOWEJ
+        // LOGIKA APLIKACJI MAPOWEJ
         function findCardByName(name) {
             const cards = document.querySelectorAll('.region-card');
             return Array.from(cards).find(c => c.getAttribute('data-region-name') === name);
@@ -505,7 +505,7 @@
                 </svg>`;
 
             return L.divIcon({
-                className: 'custom-pin-marker',
+                class: 'custom-pin-marker',
                 html: svgIcon,
                 iconSize: [24, 32],
                 iconAnchor: [12, 32],
@@ -581,7 +581,7 @@
                 if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
                     const flat = getFlatLatLngs(layer);
                     snapshotPolygons.push({
-                        name: layer.regionName || 'Rejon',
+                        regionName: layer.regionName || 'Rejon',
                         color: layer.regionColor || '#3388ff',
                         latLngs: flat.map(ll => ({ lat: ll.lat, lng: ll.lng }))
                     });
@@ -634,7 +634,7 @@
 
                 drawnItems.addLayer(polygonLayer);
                 polygonLayer.regionColor = item.color;
-                polygonLayer.regionName = item.name;
+                polygonLayer.regionName = item.regionName;
                 attachLayerEvents(polygonLayer);
             });
 
@@ -735,15 +735,15 @@
         const yearSelect = document.getElementById('yearSelect');
         const workdaysCountEl = document.getElementById('workdaysCount');
 
-        const monthNames = [
+        const months = [
             'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
             'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'
         ];
 
-        monthNames.forEach((name, idx) => {
+        months.forEach((m, idx) => {
             const opt = document.createElement('option');
             opt.value = idx + 1;
-            opt.innerText = name;
+            opt.innerText = m;
             monthSelect.appendChild(opt);
         });
 
@@ -773,10 +773,22 @@
         monthSelect.addEventListener('change', updateWorkdaysDisplay);
         yearSelect.addEventListener('change', updateWorkdaysDisplay);
 
-        // FUNKCJA POMOCNICZA DO GEOKODOWANIA NA ŻYWO (Pkt 4 i 5)
-        async function geocodeAddressLive(addressQuery) {
+        // FUNKCJA POMOCNICZA DO GEOKODOWANIA NA ŻYWO (Z OGRANICZENIEM PROMIENIA DO 15 KM)
+        async function geocodeAddressLive(addressQuery, currentLatLng = null) {
             try {
-                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressQuery)}`);
+                let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressQuery)}`;
+                
+                if (currentLatLng) {
+                    const delta = 0.135; // ok. 15 km w stopniach geograficznych
+                    const minLon = currentLatLng.lng - delta;
+                    const maxLon = currentLatLng.lng + delta;
+                    const minLat = currentLatLng.lat - delta;
+                    const maxLat = currentLatLng.lat + delta;
+
+                    url += `&viewbox=${minLon},${maxLat},${maxLon},${minLat}&bounded=1`;
+                }
+
+                const response = await fetch(url);
                 const data = await response.json();
                 if (data && data.length > 0) {
                     return L.latLng(parseFloat(data[0].lat), parseFloat(data[0].lon));
@@ -787,7 +799,7 @@
             return null;
         }
 
-        // TWORZENIE INTERAKTYWNEJ PINEZKI Z DODATKOWYMI OPCJAMI W POPUPIE (Pkt 2 i 5)
+        // TWORZENIE INTERAKTYWNEJ PINEZKI Z DODATKOWYMI OPCJAMI W POPUPIE
         function createInteractiveMarker(lat, lng, title) {
             const defaultColor = "#7f8c8d";
             
@@ -814,7 +826,7 @@
                 popupContainer.style.minWidth = '180px';
                 popupContainer.innerHTML = `<b>${escapeXml(title)}</b><br>`;
 
-                // OPCJA 1: Wybór rejonu do przypisania (Pkt 2)
+                // OPCJA 1: Wybór rejonu do przypisania
                 const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
                 const regionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy')));
 
@@ -851,7 +863,7 @@
                     popupContainer.appendChild(assignBox);
                 }
 
-                // OPCJA 2: Geokoduj ponownie (Pkt 5)
+                // OPCJA 2: Geokoduj ponownie
                 const btnGeocode = document.createElement('button');
                 btnGeocode.className = 'btn-popup-action';
                 btnGeocode.style.backgroundColor = '#27ae60';
@@ -861,7 +873,7 @@
                     btnGeocode.innerText = '⏳ Szukanie...';
                     btnGeocode.disabled = true;
 
-                    const newLatLng = await geocodeAddressLive(title);
+                    const newLatLng = await geocodeAddressLive(title, marker.getLatLng());
                     if (newLatLng) {
                         recordState();
                         marker.setLatLng(newLatLng);
@@ -900,7 +912,7 @@
             return marker;
         }
 
-        // PRZYPISANIE JEDNEGO MARKERA Z OBSŁUGĄ GEOKODOWANIA NA ŻYWO (Pkt 4)
+        // PRZYPISANIE JEDNEGO MARKERA Z OBSŁUGĄ GEOKODOWANIA NA ŻYWO
         async function assignSingleMarkerToRegion(marker, targetRegionName) {
             const targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === targetRegionName);
             if (!targetLayer) return;
@@ -911,7 +923,7 @@
             let assignedSuccessfully = false;
 
             // KROK 1: Próba geokodowania na żywo i sprawdzenie czy spada w poligon
-            const liveLatLng = await geocodeAddressLive(marker.markerTitle);
+            const liveLatLng = await geocodeAddressLive(marker.markerTitle, marker.getLatLng());
             if (liveLatLng) {
                 const turfLivePoint = turf.point([liveLatLng.lng, liveLatLng.lat]);
                 if (turf.booleanPointInPolygon(turfLivePoint, geoJson)) {
@@ -1280,7 +1292,6 @@
             recalculateAllStats();
             saveToLocalStorage();
 
-            // DOPASOWANIE WIDOKU KIEDY BRAK REJONÓW LUB KIEDY SĄ TYLKO PUNKTY (Pkt 1)
             if (drawnItems.getLayers().length > 0) {
                 map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
             } else if (markersClusterGroup.getLayers().length > 0) {
@@ -1488,6 +1499,7 @@
             });
         }
 
+        // ZAKTUALIZOWANA FUNKCJA PARSUJĄCA TABELE Z DODAWANIEM MIEJSCOWOŚCI PO PRZECINKU
         function renderTableData(rows) {
             const newMarkers = [];
             rows.forEach(row => {
@@ -1500,11 +1512,26 @@
                     const lat = parseFloat(row[latKey]);
                     const lon = parseFloat(row[lonKey]);
 
+                    // Pobranie miejscowości (kolumna A -> keys[0])
+                    const valA = keys[0] && row[keys[0]] !== undefined ? String(row[keys[0]]).trim() : '';
+                    // Pobranie ulicy (kolumna B -> keys[1])
                     const valB = keys[1] && row[keys[1]] !== undefined ? String(row[keys[1]]).trim() : '';
+                    // Pobranie numeru (kolumna C -> keys[2])
                     const valC = keys[2] && row[keys[2]] !== undefined ? String(row[keys[2]]).trim() : '';
 
-                    let label = [valB, valC].filter(Boolean).join(' ');
-                    
+                    // Łączenie ulicy i numeru (dotychczasowa nazwa)
+                    const streetAndNum = [valB, valC].filter(Boolean).join(' ');
+
+                    // Tworzenie pełnego ciągu: "Ulica Numer, Miejscowość"
+                    let label = '';
+                    if (streetAndNum && valA) {
+                        label = `${streetAndNum}, ${valA}`;
+                    } else if (streetAndNum) {
+                        label = streetAndNum;
+                    } else if (valA) {
+                        label = valA;
+                    }
+
                     if (!label) {
                         label = 'Punkt';
                     }
@@ -1633,7 +1660,6 @@
             sortUnassignedGroupsSelect.addEventListener('change', openUnassignedModal);
         }
 
-        // AKCJA PRZYPISYWANIA MASOWEGO Z WYSZUKANIA (Pkt 3)
         btnBatchAssign.addEventListener('click', async () => {
             const visibleGroups = Array.from(document.querySelectorAll('#unassignedGroupsList .group-item'))
                 .filter(item => item.style.display !== 'none');
@@ -1683,7 +1709,6 @@
             const container = document.getElementById('unassignedGroupsList');
             container.innerHTML = '';
 
-            // Wypełnienie rozwijanej listy w panelu masowym (Pkt 3)
             batchRegionSelect.innerHTML = regionNames.map(r => `<option value="${escapeXml(r)}">${escapeXml(r)}</option>`).join('');
 
             if (regionNames.length === 0) {
@@ -1761,7 +1786,6 @@
             });
         }
 
-        // LOGIKA MASOWEGO PRZYPISANIA GRUPY PUNKTÓW Z PROBĄ GEOKODOWANIA NA ŻYWO (Pkt 4)
         async function assignGroupToRegion(groupTitle, targetRegionName) {
             const targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === targetRegionName);
             
@@ -1775,19 +1799,17 @@
             const geoJson = targetLayer.toGeoJSON();
             const unassignedInGroup = allMarkers.filter(m => !m.isAssigned && (m.markerTitle || 'Brak nazwy/adresu') === groupTitle);
             
-            // KROK 1: Próba geokodowania adresu "na żywo"
-            let liveLatLng = await geocodeAddressLive(groupTitle);
+            const refLatLng = unassignedInGroup.length > 0 ? unassignedInGroup[0].getLatLng() : null;
+            let liveLatLng = await geocodeAddressLive(groupTitle, refLatLng);
             let useLiveGeocode = false;
 
             if (liveLatLng) {
                 const turfLivePoint = turf.point([liveLatLng.lng, liveLatLng.lat]);
-                // Sprawdzamy, czy wygeokodowany punkt wpadł dokładnie do narysowanego obszaru
                 if (turf.booleanPointInPolygon(turfLivePoint, geoJson)) {
                     useLiveGeocode = true;
                 }
             }
 
-            // KROK 2: Jeśli geokodowanie zawiodło lub spada poza poligon -> fallback do centrum wnętrza
             if (useLiveGeocode && liveLatLng) {
                 unassignedInGroup.forEach(m => {
                     m.setLatLng(liveLatLng);
