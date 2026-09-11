@@ -1676,6 +1676,8 @@
             document.getElementById('unassignedCount').innerText = unassignedCount;
 
             if (showOnlyUnassigned) filterUnassignedMarkers();
+            if (typeof updateFilteredPointsList === 'function') {
+                updateFilteredPointsList();
         }
 
         const toggleUnassignedBtn = document.getElementById('toggleUnassignedBtn');
@@ -1980,61 +1982,64 @@
         }
 
         function updateFilteredPointsList() {
-            const query = searchAllPointsInput ? searchAllPointsInput.value.toLowerCase().trim() : '';
-            const selectedRegion = filterAllPointsRegionSelect ? filterAllPointsRegionSelect.value : 'ALL';
-            const sortMode = sortAllPointsSelect ? sortAllPointsSelect.value : 'name-asc';
+    const query = searchAllPointsInput ? searchAllPointsInput.value.toLowerCase().trim() : '';
+    const selectedRegion = filterAllPointsRegionSelect ? filterAllPointsRegionSelect.value : 'ALL';
+    const sortMode = sortAllPointsSelect ? sortAllPointsSelect.value : 'name-asc';
 
-            let indexedMarkers = allMarkers.map((m, idx) => ({
-                marker: m,
-                index: idx,
-                title: m.markerTitle || 'Brak nazwy/adresu',
-                assignedRegion: m.assignedRegionName || 'Nieprzypisany'
-            }));
+    let indexedMarkers = allMarkers.map((m, idx) => ({
+        marker: m,
+        index: idx,
+        title: m.markerTitle || 'Brak nazwy/adresu',
+        assignedRegion: m.assignedRegionName || 'Nieprzypisany'
+    }));
 
-            filteredPointsData = indexedMarkers.filter(item => {
-                const title = item.title.toLowerCase();
-                const region = item.assignedRegion.toLowerCase();
-                const rawRegion = item.assignedRegion;
+    filteredPointsData = indexedMarkers.filter(item => {
+        const title = item.title.toLowerCase();
+        const rawRegion = item.assignedRegion;
 
-                const matchesQuery = title.includes(query) || region.includes(query);
-                let matchesRegion = true;
+        // 1. Szukamy wyłącznie w nazwie/adresie punktu (zamiast w rejonie)
+        const matchesQuery = !query || title.includes(query);
 
-                if (selectedRegion === 'UNASSIGNED') {
-                    matchesRegion = (rawRegion === 'Nieprzypisany');
-                } else if (selectedRegion !== 'ALL') {
-                    matchesRegion = rawRegion.includes(selectedRegion);
-                }
+        // 2. Precyzyjne dopasowanie rejonu z listy rozwijanej
+        let matchesRegion = true;
 
-                return matchesQuery && matchesRegion;
-            });
-
-            filteredPointsData.sort((a, b) => {
-                if (sortMode === 'name-asc') return a.title.localeCompare(b.title, 'pl');
-                if (sortMode === 'name-desc') return b.title.localeCompare(a.title, 'pl');
-                if (sortMode === 'region-asc') return a.assignedRegion.localeCompare(b.assignedRegion, 'pl');
-                if (sortMode === 'region-desc') return b.assignedRegion.localeCompare(a.assignedRegion, 'pl');
-                return 0;
-            });
-
-            const visibleCount = filteredPointsData.length;
-            const modalWorkdays = parseInt(workdaysCountEl.innerText) || 0;
-            const perDay = modalWorkdays > 0 ? Math.round(visibleCount / modalWorkdays) : 0;
-
-            document.getElementById('modalVisibleCount').innerText = visibleCount;
-            document.getElementById('modalWorkdaysCount').innerText = modalWorkdays;
-            document.getElementById('modalVisiblePerDay').innerText = perDay;
-
-            const container = document.getElementById('allPointsGroupsList');
-            container.innerHTML = '';
-            currentlyRenderedCount = 0;
-
-            if (visibleCount === 0) {
-                container.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">Brak punktów spełniających kryteria.</div>';
-                return;
-            }
-
-            renderNextBatchOfPoints();
+        if (selectedRegion === 'UNASSIGNED') {
+            matchesRegion = (rawRegion === 'Nieprzypisany');
+        } else if (selectedRegion !== 'ALL') {
+            // Ścisłe porównanie wartości, aby Rejon 1 nie wyłapywał Rejonu 10
+            matchesRegion = (rawRegion === selectedRegion);
         }
+
+        return matchesQuery && matchesRegion;
+    });
+
+    filteredPointsData.sort((a, b) => {
+        if (sortMode === 'name-asc') return a.title.localeCompare(b.title, 'pl');
+        if (sortMode === 'name-desc') return b.title.localeCompare(a.title, 'pl');
+        if (sortMode === 'region-asc') return a.assignedRegion.localeCompare(b.assignedRegion, 'pl');
+        if (sortMode === 'region-desc') return b.assignedRegion.localeCompare(a.assignedRegion, 'pl');
+        return 0;
+    });
+
+    const visibleCount = filteredPointsData.length;
+    const modalWorkdays = parseInt(workdaysCountEl.innerText) || 0;
+    const perDay = modalWorkdays > 0 ? Math.round(visibleCount / modalWorkdays) : 0;
+
+    document.getElementById('modalVisibleCount').innerText = visibleCount;
+    document.getElementById('modalWorkdaysCount').innerText = modalWorkdays;
+    document.getElementById('modalVisiblePerDay').innerText = perDay;
+
+    const container = document.getElementById('allPointsGroupsList');
+    container.innerHTML = '';
+    currentlyRenderedCount = 0;
+
+    if (visibleCount === 0) {
+        container.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">Brak punktów spełniających kryteria.</div>';
+        return;
+    }
+
+    renderNextBatchOfPoints();
+}
 
         function renderNextBatchOfPoints() {
             if (currentlyRenderedCount >= filteredPointsData.length) return;
