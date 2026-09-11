@@ -246,9 +246,15 @@
 
         .btn-delete-marker {
             background: #e74c3c; color: white; border: none; padding: 4px 8px;
-            font-size: 11px; border-radius: 3px; cursor: pointer; margin-top: 6px; width: 100%;
+            font-size: 11px; border-radius: 3px; cursor: pointer; margin-top: 4px; width: 100%;
         }
         .btn-delete-marker:hover { background: #c0392b; }
+
+        .btn-popup-action {
+            background: #3498db; color: white; border: none; padding: 4px 8px;
+            font-size: 11px; border-radius: 3px; cursor: pointer; margin-top: 4px; width: 100%;
+        }
+        .btn-popup-action:hover { background: #2980b9; }
 
         .custom-pin-marker {
             background: none !important;
@@ -265,7 +271,7 @@
             justify-content: center; align-items: center;
         }
         .modal-card {
-            background: white; border-radius: 8px; width: 620px; max-height: 85vh;
+            background: white; border-radius: 8px; width: 680px; max-height: 85vh;
             display: flex; flex-direction: column; padding: 18px; box-shadow: 0 5px 20px rgba(0,0,0,0.4);
         }
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #dee2e6; padding-bottom: 10px; }
@@ -274,6 +280,14 @@
         .btn-close-modal:hover { color: #000; }
         .modal-body { overflow-y: auto; flex: 1; margin-top: 12px; padding-right: 4px; }
         
+        .batch-assign-panel {
+            background: #eef2f7; border: 1px solid #d0d7de; border-radius: 6px;
+            padding: 8px 10px; margin-top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        }
+        .batch-assign-panel select { padding: 4px 6px; font-size: 11px; border: 1px solid #ced4da; border-radius: 4px; flex: 1; }
+        .btn-batch-assign { background: #8e44ad; color: white; border: none; padding: 5px 10px; font-size: 11px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .btn-batch-assign:hover { background: #732d91; }
+
         .group-item {
             background: #f8f9fa; border: 1px solid #e9ecef; padding: 10px 12px;
             margin-bottom: 8px; border-radius: 6px; display: flex; justify-content: space-between;
@@ -396,6 +410,13 @@
                     <option value="name-asc">Nazwa (A-Z)</option>
                     <option value="name-desc">Nazwa (Z-A)</option>
                 </select>
+            </div>
+
+            <!-- PASEK MASOWEGO PRZYPISYWANIA Z WYNIKÓW WYSZUKIWANIA (Pkt 3) -->
+            <div id="batchAssignPanel" class="batch-assign-panel">
+                <span style="font-size: 11px; font-weight: bold; color: #2c3e50;">Przypisz wszystkie widoczne z wyszukiwania do:</span>
+                <select id="batchRegionSelect"></select>
+                <button id="btnBatchAssign" class="btn-batch-assign">⚡ Przypisz wszystkie</button>
             </div>
 
             <div id="unassignedGroupsList" class="modal-body">
@@ -752,6 +773,21 @@
         monthSelect.addEventListener('change', updateWorkdaysDisplay);
         yearSelect.addEventListener('change', updateWorkdaysDisplay);
 
+        // FUNKCJA POMOCNICZA DO GEOKODOWANIA NA ŻYWO (Pkt 4 i 5)
+        async function geocodeAddressLive(addressQuery) {
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressQuery)}`);
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    return L.latLng(parseFloat(data[0].lat), parseFloat(data[0].lon));
+                }
+            } catch (err) {
+                console.warn('Błąd geokodowania:', err);
+            }
+            return null;
+        }
+
+        // TWORZENIE INTERAKTYWNEJ PINEZKI Z DODATKOWYMI OPCJAMI W POPUPIE (Pkt 2 i 5)
         function createInteractiveMarker(lat, lng, title) {
             const defaultColor = "#7f8c8d";
             
@@ -773,25 +809,126 @@
                 saveMarkersToLocalStorage();
             });
 
-            const popupContainer = document.createElement('div');
-            popupContainer.innerHTML = `<b>${escapeXml(title)}</b><br>`;
+            const updatePopupContent = () => {
+                const popupContainer = document.createElement('div');
+                popupContainer.style.minWidth = '180px';
+                popupContainer.innerHTML = `<b>${escapeXml(title)}</b><br>`;
 
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'btn-delete-marker';
-            deleteBtn.innerText = '🗑️ Usuń punkt';
-            
-            deleteBtn.addEventListener('click', () => {
-                recordState();
-                markersClusterGroup.removeLayer(marker);
-                allMarkers = allMarkers.filter(m => m !== marker);
-                recalculateAllStats();
-                saveMarkersToLocalStorage();
-            });
+                // OPCJA 1: Wybór rejonu do przypisania (Pkt 2)
+                const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+                const regionNames = Array.from(new Set(regionLayers.map(l => l.regionName || 'Bez nazwy')));
 
-            popupContainer.appendChild(deleteBtn);
-            marker.bindPopup(popupContainer);
+                if (regionNames.length > 0) {
+                    const assignBox = document.createElement('div');
+                    assignBox.style.marginTop = '6px';
+                    assignBox.style.display = 'flex';
+                    assignBox.style.flexDirection = 'column';
+                    assignBox.style.gap = '3px';
+
+                    const select = document.createElement('select');
+                    select.style.fontSize = '11px';
+                    select.style.padding = '2px 4px';
+                    select.style.width = '100%';
+                    
+                    regionNames.forEach(rName => {
+                        const opt = document.createElement('option');
+                        opt.value = rName;
+                        opt.innerText = rName;
+                        select.appendChild(opt);
+                    });
+
+                    const btnAssign = document.createElement('button');
+                    btnAssign.className = 'btn-popup-action';
+                    btnAssign.innerText = '📍 Przypisz do rejonu';
+
+                    btnAssign.addEventListener('click', async () => {
+                        marker.closePopup();
+                        await assignSingleMarkerToRegion(marker, select.value);
+                    });
+
+                    assignBox.appendChild(select);
+                    assignBox.appendChild(btnAssign);
+                    popupContainer.appendChild(assignBox);
+                }
+
+                // OPCJA 2: Geokoduj ponownie (Pkt 5)
+                const btnGeocode = document.createElement('button');
+                btnGeocode.className = 'btn-popup-action';
+                btnGeocode.style.backgroundColor = '#27ae60';
+                btnGeocode.innerText = '🌐 Geokoduj ponownie';
+
+                btnGeocode.addEventListener('click', async () => {
+                    btnGeocode.innerText = '⏳ Szukanie...';
+                    btnGeocode.disabled = true;
+
+                    const newLatLng = await geocodeAddressLive(title);
+                    if (newLatLng) {
+                        recordState();
+                        marker.setLatLng(newLatLng);
+                        recalculateAllStats();
+                        saveToLocalStorage();
+                        alert(`Znaleziono nową lokalizację dla: "${title}"`);
+                        marker.closePopup();
+                    } else {
+                        alert(`Nie udało się odnaleźć punktu w geokoderze.`);
+                        btnGeocode.innerText = '🌐 Geokoduj ponownie';
+                        btnGeocode.disabled = false;
+                    }
+                });
+
+                popupContainer.appendChild(btnGeocode);
+
+                // OPCJA 3: Usuwanie
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn-delete-marker';
+                deleteBtn.innerText = '🗑️ Usuń punkt';
+                
+                deleteBtn.addEventListener('click', () => {
+                    recordState();
+                    markersClusterGroup.removeLayer(marker);
+                    allMarkers = allMarkers.filter(m => m !== marker);
+                    recalculateAllStats();
+                    saveMarkersToLocalStorage();
+                });
+
+                popupContainer.appendChild(deleteBtn);
+                return popupContainer;
+            };
+
+            marker.bindPopup(updatePopupContent);
 
             return marker;
+        }
+
+        // PRZYPISANIE JEDNEGO MARKERA Z OBSŁUGĄ GEOKODOWANIA NA ŻYWO (Pkt 4)
+        async function assignSingleMarkerToRegion(marker, targetRegionName) {
+            const targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === targetRegionName);
+            if (!targetLayer) return;
+
+            recordState();
+
+            const geoJson = targetLayer.toGeoJSON();
+            let assignedSuccessfully = false;
+
+            // KROK 1: Próba geokodowania na żywo i sprawdzenie czy spada w poligon
+            const liveLatLng = await geocodeAddressLive(marker.markerTitle);
+            if (liveLatLng) {
+                const turfLivePoint = turf.point([liveLatLng.lng, liveLatLng.lat]);
+                if (turf.booleanPointInPolygon(turfLivePoint, geoJson)) {
+                    marker.setLatLng(liveLatLng);
+                    assignedSuccessfully = true;
+                }
+            }
+
+            // KROK 2: Jeśli geokodowanie zawiodło lub spada poza poligon -> fallback do centrum wnętrza
+            if (!assignedSuccessfully) {
+                const pointInside = turf.pointOnFeature(geoJson);
+                const interiorLatLng = L.latLng(pointInside.geometry.coordinates[1], pointInside.geometry.coordinates[0]);
+                marker.setLatLng(interiorLatLng);
+            }
+
+            recalculateAllStats();
+            saveToLocalStorage();
         }
 
         function selectRegion(layer) {
@@ -1143,6 +1280,7 @@
             recalculateAllStats();
             saveToLocalStorage();
 
+            // DOPASOWANIE WIDOKU KIEDY BRAK REJONÓW LUB KIEDY SĄ TYLKO PUNKTY (Pkt 1)
             if (drawnItems.getLayers().length > 0) {
                 map.fitBounds(drawnItems.getBounds(), { padding: [30, 30] });
             } else if (markersClusterGroup.getLayers().length > 0) {
@@ -1351,41 +1489,37 @@
         }
 
         function renderTableData(rows) {
-    const newMarkers = [];
-    rows.forEach(row => {
-        const keys = Object.keys(row);
-        
-        // Wyszukiwanie współrzędnych
-        const latKey = keys.find(k => ['lat', 'latitude', 'szerokosc', 'szerokość', 'Szerokość geogr. (Lat)'].includes(k.trim().toLowerCase()));
-        const lonKey = keys.find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość', 'Długość geogr. (Lng)'].includes(k.trim().toLowerCase()));
+            const newMarkers = [];
+            rows.forEach(row => {
+                const keys = Object.keys(row);
+                
+                const latKey = keys.find(k => ['lat', 'latitude', 'szerokosc', 'szerokość', 'Szerokość geogr. (Lat)'].includes(k.trim().toLowerCase()));
+                const lonKey = keys.find(k => ['long', 'lng', 'longitude', 'dlugosc', 'długość', 'Długość geogr. (Lng)'].includes(k.trim().toLowerCase()));
 
-        if (latKey && lonKey) {
-            const lat = parseFloat(row[latKey]);
-            const lon = parseFloat(row[lonKey]);
+                if (latKey && lonKey) {
+                    const lat = parseFloat(row[latKey]);
+                    const lon = parseFloat(row[lonKey]);
 
-            // Odczyt wartości z kolumny B (indeks 1) i kolumny C (indeks 2)
-            const valB = keys[1] && row[keys[1]] !== undefined ? String(row[keys[1]]).trim() : '';
-            const valC = keys[2] && row[keys[2]] !== undefined ? String(row[keys[2]]).trim() : '';
+                    const valB = keys[1] && row[keys[1]] !== undefined ? String(row[keys[1]]).trim() : '';
+                    const valC = keys[2] && row[keys[2]] !== undefined ? String(row[keys[2]]).trim() : '';
 
-            // Połączenie wartości B i C spacją
-            let label = [valB, valC].filter(Boolean).join(' ');
-            
-            // Jeśli obie kolumny są puste, ustaw domyślną etykietę
-            if (!label) {
-                label = 'Punkt';
-            }
+                    let label = [valB, valC].filter(Boolean).join(' ');
+                    
+                    if (!label) {
+                        label = 'Punkt';
+                    }
 
-            if (!isNaN(lat) && !isNaN(lon)) {
-                const m = createInteractiveMarker(lat, lon, label);
-                newMarkers.push(m);
-                allMarkers.push(m);
-            }
+                    if (!isNaN(lat) && !isNaN(lon)) {
+                        const m = createInteractiveMarker(lat, lon, label);
+                        newMarkers.push(m);
+                        allMarkers.push(m);
+                    }
+                }
+            });
+
+            markersClusterGroup.addLayers(newMarkers);
+            return newMarkers.length;
         }
-    });
-
-    markersClusterGroup.addLayers(newMarkers);
-    return newMarkers.length;
-}
 
         function recalculateAllStats() {
             const regionLayers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
@@ -1485,6 +1619,8 @@
         const unassignedModal = document.getElementById('unassignedModal');
         const searchUnassignedGroupsInput = document.getElementById('searchUnassignedGroupsInput');
         const sortUnassignedGroupsSelect = document.getElementById('sortUnassignedGroupsSelect');
+        const batchRegionSelect = document.getElementById('batchRegionSelect');
+        const btnBatchAssign = document.getElementById('btnBatchAssign');
 
         openUnassignedModalBtn.addEventListener('click', openUnassignedModal);
         closeUnassignedModalBtn.addEventListener('click', closeUnassignedModal);
@@ -1496,6 +1632,36 @@
         if (sortUnassignedGroupsSelect) {
             sortUnassignedGroupsSelect.addEventListener('change', openUnassignedModal);
         }
+
+        // AKCJA PRZYPISYWANIA MASOWEGO Z WYSZUKANIA (Pkt 3)
+        btnBatchAssign.addEventListener('click', async () => {
+            const visibleGroups = Array.from(document.querySelectorAll('#unassignedGroupsList .group-item'))
+                .filter(item => item.style.display !== 'none');
+
+            if (visibleGroups.length === 0) {
+                alert('Brak widocznych wyników do przypisania!');
+                return;
+            }
+
+            const targetRegion = batchRegionSelect.value;
+            if (!targetRegion) {
+                alert('Wybierz rejon z listy!');
+                return;
+            }
+
+            btnBatchAssign.innerText = '⏳ Przypisywanie...';
+            btnBatchAssign.disabled = true;
+
+            for (const item of visibleGroups) {
+                const title = item.getAttribute('data-raw-title');
+                if (title) {
+                    await assignGroupToRegion(title, targetRegion);
+                }
+            }
+
+            btnBatchAssign.innerText = '⚡ Przypisz wszystkie';
+            btnBatchAssign.disabled = false;
+        });
 
         function openUnassignedModal() {
             const unassigned = allMarkers.filter(m => !m.isAssigned);
@@ -1517,13 +1683,15 @@
             const container = document.getElementById('unassignedGroupsList');
             container.innerHTML = '';
 
+            // Wypełnienie rozwijanej listy w panelu masowym (Pkt 3)
+            batchRegionSelect.innerHTML = regionNames.map(r => `<option value="${escapeXml(r)}">${escapeXml(r)}</option>`).join('');
+
             if (regionNames.length === 0) {
                 container.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">Narysuj najpierw przynajmniej jeden rejon, aby móc przypisać punkty.</div>';
                 unassignedModal.style.display = 'flex';
                 return;
             }
 
-            // SORTOWANIE GRUP
             const sortMode = sortUnassignedGroupsSelect ? sortUnassignedGroupsSelect.value : 'count-desc';
             let sortedKeys = Object.keys(groups);
 
@@ -1543,6 +1711,7 @@
                 const div = document.createElement('div');
                 div.className = 'group-item';
                 div.setAttribute('data-group-title', groupTitle.toLowerCase());
+                div.setAttribute('data-raw-title', groupTitle);
                 
                 const optionsHtml = regionNames.map(r => `<option value="${escapeXml(r)}">${escapeXml(r)}</option>`).join('');
 
@@ -1562,19 +1731,19 @@
             });
 
             container.querySelectorAll('.btn-assign-group').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+                btn.addEventListener('click', async (e) => {
                     const title = e.target.getAttribute('data-group-title');
                     const selectId = e.target.getAttribute('data-select-id');
                     const selectEl = document.getElementById(selectId);
                     if (selectEl) {
-                        assignGroupToRegion(title, selectEl.value);
+                        e.target.innerText = '⏳...';
+                        e.target.disabled = true;
+                        await assignGroupToRegion(title, selectEl.value);
                     }
                 });
             });
 
-            // Reaplikujemy filtrowanie dla zachowania wpisanego tekstu
             filterUnassignedGroups();
-
             unassignedModal.style.display = 'flex';
         }
 
@@ -1592,42 +1761,56 @@
             });
         }
 
-        function assignGroupToRegion(groupTitle, targetRegionName) {
-    const targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === targetRegionName);
-    
-    if (!targetLayer) {
-        alert('Wybrany rejon nie istnieje!');
-        return;
-    }
+        // LOGIKA MASOWEGO PRZYPISANIA GRUPY PUNKTÓW Z PROBĄ GEOKODOWANIA NA ŻYWO (Pkt 4)
+        async function assignGroupToRegion(groupTitle, targetRegionName) {
+            const targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === targetRegionName);
+            
+            if (!targetLayer) {
+                alert('Wybrany rejon nie istnieje!');
+                return;
+            }
 
-    recordState();
+            recordState();
 
-    // Wyznaczamy punkt, który na 100% znajduje się wewnątrz wielokąta (a nie poza nim)
-    const geoJson = targetLayer.toGeoJSON();
-    const pointInside = turf.pointOnFeature(geoJson);
-    const interiorLatLng = L.latLng(pointInside.geometry.coordinates[1], pointInside.geometry.coordinates[0]);
+            const geoJson = targetLayer.toGeoJSON();
+            const unassignedInGroup = allMarkers.filter(m => !m.isAssigned && (m.markerTitle || 'Brak nazwy/adresu') === groupTitle);
+            
+            // KROK 1: Próba geokodowania adresu "na żywo"
+            let liveLatLng = await geocodeAddressLive(groupTitle);
+            let useLiveGeocode = false;
 
-    // Pobieramy nieprzypisane punkty z danej grupy
-    const unassignedInGroup = allMarkers.filter(m => !m.isAssigned && (m.markerTitle || 'Brak nazwy/adresu') === groupTitle);
-    
-    // Przenosimy punkty bezpośrednio wewnątrz wielokąta
-    unassignedInGroup.forEach(m => {
-        m.setLatLng(interiorLatLng);
-    });
+            if (liveLatLng) {
+                const turfLivePoint = turf.point([liveLatLng.lng, liveLatLng.lat]);
+                // Sprawdzamy, czy wygeokodowany punkt wpadł dokładnie do narysowanego obszaru
+                if (turf.booleanPointInPolygon(turfLivePoint, geoJson)) {
+                    useLiveGeocode = true;
+                }
+            }
 
-    // Przeliczamy statystyki ponownie
-    recalculateAllStats();
-    saveToLocalStorage();
+            // KROK 2: Jeśli geokodowanie zawiodło lub spada poza poligon -> fallback do centrum wnętrza
+            if (useLiveGeocode && liveLatLng) {
+                unassignedInGroup.forEach(m => {
+                    m.setLatLng(liveLatLng);
+                });
+            } else {
+                const pointInside = turf.pointOnFeature(geoJson);
+                const interiorLatLng = L.latLng(pointInside.geometry.coordinates[1], pointInside.geometry.coordinates[0]);
+                unassignedInGroup.forEach(m => {
+                    m.setLatLng(interiorLatLng);
+                });
+            }
 
-    // Sprawdzamy, czy zostały jeszcze jakieś nieprzypisane punkty
-    const remainingUnassigned = allMarkers.filter(m => !m.isAssigned);
-    if (remainingUnassigned.length > 0) {
-        openUnassignedModal();
-    } else {
-        if (searchUnassignedGroupsInput) searchUnassignedGroupsInput.value = '';
-        closeUnassignedModal();
-    }
-}
+            recalculateAllStats();
+            saveToLocalStorage();
+
+            const remainingUnassigned = allMarkers.filter(m => !m.isAssigned);
+            if (remainingUnassigned.length > 0) {
+                openUnassignedModal();
+            } else {
+                if (searchUnassignedGroupsInput) searchUnassignedGroupsInput.value = '';
+                closeUnassignedModal();
+            }
+        }
 
         function closeUnassignedModal() {
             unassignedModal.style.display = 'none';
