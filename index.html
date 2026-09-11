@@ -846,7 +846,7 @@
         yearSelect.addEventListener('change', updateWorkdaysDisplay);
 
         // FUNKCJA POMOCNICZA DO GEOKODOWANIA NA ŻYWO (Z OGRANICZENIEM PROMIENIA LUB OBSZARU REJONU)
-        async function geocodeAddressLive(addressQuery, currentLatLng = null, targetRegionLayer = null) {
+        async function (addressQuery, currentLatLng = null, targetRegionLayer = null) {
             try {
                 let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressQuery)}`;
                 
@@ -1171,58 +1171,52 @@
                     btnGeocodeAllLoc.innerText = `🌐 Geokoduj wszystkie punkty z tej lokalizacji (${sameLocMarkers.length})`;
 
                     btnGeocodeAllLoc.addEventListener('click', async () => {
-                        btnGeocodeAllLoc.disabled = true;
-                        
-                        // Zabezpieczenie przed przysłonięciem gradientu przez domyślny styl :disabled w przeglądarce
-                        btnGeocodeAllLoc.style.opacity = '1';
-                        btnGeocodeAllLoc.style.color = '#ffffff';
-                        btnGeocodeAllLoc.style.cursor = 'wait';
+    btnGeocodeAllLoc.disabled = true;
+    
+    // Zabezpieczenie przed przysłonięciem gradientu przez domyślny styl :disabled w przeglądarce
+    btnGeocodeAllLoc.style.opacity = '1';
+    btnGeocodeAllLoc.style.color = '#ffffff';
+    btnGeocodeAllLoc.style.cursor = 'wait';
 
-                        recordState();
-                        let countSuccess = 0;
-                        const totalMarkers = sameLocMarkers.length;
+    recordState();
+    let countSuccess = 0;
+    const totalMarkers = sameLocMarkers.length;
 
-                        for (let i = 0; i < totalMarkers; i++) {
-                            const m = sameLocMarkers[i];
-                            const currentStep = i + 1;
-                            const percent = Math.round((currentStep / totalMarkers) * 100);
+    for (let i = 0; i < totalMarkers; i++) {
+        const m = sameLocMarkers[i];
+        const currentStep = i + 1;
+        const percent = Math.round((currentStep / totalMarkers) * 100);
 
-                            // Aktualizacja tekstu i zielonego tła postępu na żywo
-                            btnGeocodeAllLoc.innerText = `⏳ Geokodowanie (${currentStep}/${totalMarkers})... ${percent}%`;
-                            btnGeocodeAllLoc.style.background = `linear-gradient(to right, #27ae60 ${percent}%, #d35400 ${percent}%)`;
+        // Aktualizacja tekstu i zielonego tła postępu na żywo
+        btnGeocodeAllLoc.innerText = `⏳ Geokodowanie (${currentStep}/${totalMarkers})... ${percent}%`;
+        btnGeocodeAllLoc.style.background = `linear-gradient(to right, #27ae60 ${percent}%, #d35400 ${percent}%)`;
 
-                            let targetLayer = null;
-                            if (m.assignedRegionName && m.assignedRegionName !== 'Nieprzypisany') {
-                                targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === m.assignedRegionName);
-                            }
-                            
-                            let newLatLng = await geocodeAddressLive(m.markerTitle, m.getLatLng(), targetLayer);
-                            
-                            if (newLatLng && targetLayer) {
-                                const geoJson = targetLayer.toGeoJSON();
-                                const turfLivePoint = turf.point([newLatLng.lng, newLatLng.lat]);
-                                if (!turf.booleanPointInPolygon(turfLivePoint, geoJson)) {
-                                    newLatLng = null;
-                                }
-                            }
+        let targetLayer = null;
+        if (m.assignedRegionName && m.assignedRegionName !== 'Nieprzypisany') {
+            targetLayer = drawnItems.getLayers().find(l => (l instanceof L.Polygon || l instanceof L.Rectangle) && l.regionName === m.assignedRegionName);
+        }
+        
+        const newLatLng = await geocodeAddressLive(m.markerTitle, m.getLatLng(), targetLayer);
+        
+        if (newLatLng && targetLayer) {
+            const geoJson = targetLayer.toGeoJSON();
+            const turfLivePoint = turf.point([newLatLng.lng, newLatLng.lat]);
+            
+            // Punkt uznajemy za sukces tylko wtedy, gdy geokoder zwrócił pozycję znajdującą się wewnątrz rejonu
+            if (turf.booleanPointInPolygon(turfLivePoint, geoJson)) {
+                m.setLatLng(newLatLng);
+                countSuccess++;
+            }
+        }
+    }
 
-                            if (!newLatLng && targetLayer) {
-                                const geoJson = targetLayer.toGeoJSON();
-                                const pointInside = turf.pointOnFeature(geoJson);
-                                newLatLng = L.latLng(pointInside.geometry.coordinates[1], pointInside.geometry.coordinates[0]);
-                            }
+    const countRemaining = totalMarkers - countSuccess;
 
-                            if (newLatLng) {
-                                m.setLatLng(newLatLng);
-                                countSuccess++;
-                            }
-                        }
-
-                        recalculateAllStats();
-                        saveToLocalStorage();
-                        alert(`Zakończono masowe geokodowanie. Przeniesiono ${countSuccess} z ${totalMarkers} punktów.`);
-                        circle.closePopup();
-                    });
+    recalculateAllStats();
+    saveToLocalStorage();
+    alert(`Zakończono masowe geokodowanie.\n\n- Faktycznie przeniesiono: ${countSuccess} pkt.\n- Pozostało bez zmian (niezgeokodowano): ${countRemaining} pkt.`);
+    circle.closePopup();
+});
 
                     popupContainer.appendChild(btnGeocodeAllLoc);
                     circle.bindPopup(popupContainer);
