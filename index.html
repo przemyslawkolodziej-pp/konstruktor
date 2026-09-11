@@ -1625,12 +1625,14 @@
                 let isInsideAny = false;
                 let matchedColor = null;
 
-                const matchedNames = new Set();
+                const matchedNames = [];
                 preparedLayers.forEach(pl => {
                     if (turf.booleanPointInPolygon(turfPoint, pl.geoJSON)) {
-                        matchedNames.add(pl.name);
+                        if (!matchedNames.includes(pl.name)) {
+                            matchedNames.push(pl.name);
+                        }
                         isInsideAny = true;
-                        matchedColor = pl.color;
+                        if (!matchedColor) matchedColor = pl.color;
                     }
                 });
 
@@ -1639,7 +1641,7 @@
                 });
 
                 marker.isAssigned = isInsideAny;
-                marker.assignedRegionName = matchedNames.size > 0 ? Array.from(matchedNames).join(', ') : 'Nieprzypisany';
+                marker.assignedRegionName = matchedNames.length > 0 ? matchedNames[0] : 'Nieprzypisany';
 
                 const targetColor = (isInsideAny && matchedColor) ? matchedColor : '#7f8c8d';
 
@@ -2000,7 +2002,7 @@
                 if (selectedRegion === 'UNASSIGNED') {
                     matchesRegion = (rawRegion === 'Nieprzypisany');
                 } else if (selectedRegion !== 'ALL') {
-                    matchesRegion = (rawRegion === selectedRegion);
+                    matchesRegion = rawRegion.includes(selectedRegion);
                 }
 
                 return matchesQuery && matchesRegion;
