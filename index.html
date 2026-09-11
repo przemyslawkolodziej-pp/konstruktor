@@ -267,6 +267,7 @@
             font-size: 11px; border-radius: 3px; cursor: pointer; margin-top: 4px; width: 100%;
         }
         .btn-popup-action:hover { background: #2980b9; }
+        .btn-popup-action:disabled { background: #bdc3c7 !important; cursor: not-allowed; opacity: 0.7; }
 
         .custom-pin-marker {
             background: none !important;
@@ -974,19 +975,19 @@
 
                 popupContainer.appendChild(btnGeocode);
 
-                // OPCJA 2B: Geokoduj ponownie wszystkie punkty z tej samej lokalizacji
+                // OPCJA 2B: Przycisk ponownego masowego geokodowania wszystkich punktów z tej lokalizacji
                 const currentLoc = marker.getLatLng();
                 const sameLocMarkers = allMarkers.filter(m => 
                     m.getLatLng().lat.toFixed(6) === currentLoc.lat.toFixed(6) && 
                     m.getLatLng().lng.toFixed(6) === currentLoc.lng.toFixed(6)
                 );
 
-                if (sameLocMarkers.length > 1) {
-                    const btnGeocodeAllLoc = document.createElement('button');
-                    btnGeocodeAllLoc.className = 'btn-popup-action';
-                    btnGeocodeAllLoc.style.backgroundColor = '#d35400';
-                    btnGeocodeAllLoc.innerText = `🌐 Geokoduj wszystkie z tej lok. (${sameLocMarkers.length})`;
+                const btnGeocodeAllLoc = document.createElement('button');
+                btnGeocodeAllLoc.className = 'btn-popup-action';
+                btnGeocodeAllLoc.style.backgroundColor = '#d35400';
 
+                if (sameLocMarkers.length > 1) {
+                    btnGeocodeAllLoc.innerText = `🌐 Geokoduj wszystkie punkty z tej lokalizacji (${sameLocMarkers.length})`;
                     btnGeocodeAllLoc.addEventListener('click', async () => {
                         btnGeocodeAllLoc.innerText = '⏳ Masowe geokodowanie...';
                         btnGeocodeAllLoc.disabled = true;
@@ -1011,9 +1012,12 @@
                         alert(`Zakończono masowe geokodowanie. Przeniesiono ${countSuccess} z ${sameLocMarkers.length} punktów.`);
                         marker.closePopup();
                     });
-
-                    popupContainer.appendChild(btnGeocodeAllLoc);
+                } else {
+                    btnGeocodeAllLoc.innerText = '🌐 Geokoduj wszystkie punkty z tej lokalizacji (1 punkt)';
+                    btnGeocodeAllLoc.disabled = true;
                 }
+
+                popupContainer.appendChild(btnGeocodeAllLoc);
 
                 // OPCJA 3: Usuwanie
                 const deleteBtn = document.createElement('button');
@@ -2297,7 +2301,6 @@
                 groups[name].push(layer);
             });
 
-            // POPRAWKA: Naturalne sortowanie alfabetyczno-numeryczne (np. Rejon 2 < Rejon 10 < Rejon 100)
             const sortedRegionNames = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'pl', { numeric: true }));
 
             sortedRegionNames.forEach(name => {
@@ -2502,23 +2505,156 @@
         document.getElementById('resetStorageBtn').addEventListener('click', () => {
             if (confirm('Czy na pewno chcesz wyczyścić wszystkie punkty na mapie oraz narysowane rejony? Ta operacja jest nieodwracalna.')) {
                 recordState();
-
-                localStorage.removeItem('saved_map_regions');
-                localStorage.removeItem('saved_map_markers');
-                localStorage.removeItem('saved_map_month');
-                localStorage.removeItem('saved_map_year');
                 drawnItems.clearLayers();
                 markersClusterGroup.clearLayers();
                 allMarkers = [];
                 processedFilesSet.clear();
                 hiddenRegionsSet.clear();
 
+                localStorage.removeItem('saved_map_regions');
+                localStorage.removeItem('saved_map_markers');
+
                 rebuildRegionsListUI();
                 recalculateAllStats();
+
+                document.getElementById('fileQueueBox').innerHTML = '';
+                document.getElementById('queueToggleHeader').style.display = 'none';
+                document.getElementById('fileQueueBox').style.display = 'none';
+                document.getElementById('status').innerText = 'Wyszyszczono mapę i pamięć lokalną.';
             }
         });
 
-        // INICJALIZACJA DANYCH
+        // EKSPORT DO KML
+        document.getElementById('exportKmlBtn').addEventListener('click', () => {
+            const layers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            if (layers.length === 0) {
+                alert('Brak rejonów do wyeksportowania!');
+                return;
+            }
+
+            let kml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+            kml += `<kml xmlns="http://www.opengis.net/kml/2.2">\n`;
+            kml += `  <Document>\n`;
+            kml += `    <name>Wyeksportowane Rejony</name>\n`;
+
+            const uniqueColors = Array.from(new Set(layers.map(l => l.regionColor || '#3388ff')));
+            uniqueColors.forEach((hex, i) => {
+                const kmlColor = hexToKmlColor(hex);
+                kml += `    <Style id="style_${i}">\n`;
+                kml += `      <LineStyle><color>${kmlColor}</color><width>2</width></LineStyle>\n`;
+                kml += `      <PolyStyle><color>66${kmlColor.substring(2)}</color></PolyStyle>\n`;
+                kml += `    </Style>\n`;
+            });
+
+            layers.forEach(layer => {
+                const name = escapeXml(layer.regionName || 'Rejon');
+                const colorHex = layer.regionColor || '#3388ff';
+                const styleIdx = uniqueColors.indexOf(colorHex);
+                const flat = getFlatLatLngs(layer);
+
+                kml += `    <Placemark>\n`;
+                kml += `      <name>${name}</name>\n`;
+                kml += `      <styleUrl>#style_${styleIdx}</styleUrl>\n`;
+                kml += `      <Polygon>\n`;
+                kml += `        <outerBoundaryIs>\n`;
+                kml += `          <LinearRing>\n`;
+                kml += `            <coordinates>\n`;
+
+                flat.forEach(ll => {
+                    kml += `              ${ll.lng},${ll.lat},0\n`;
+                });
+                if (flat.length > 0) {
+                    kml += `              ${flat[0].lng},${flat[0].lat},0\n`;
+                }
+
+                kml += `            </coordinates>\n`;
+                kml += `          </LinearRing>\n`;
+                kml += `        </outerBoundaryIs>\n`;
+                kml += `      </Polygon>\n`;
+                kml += `    </Placemark>\n`;
+            });
+
+            kml += `  </Document>\n`;
+            kml += `</kml>`;
+
+            const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rejony_${new Date().toISOString().slice(0, 10)}.kml`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // EKSPORT DO XLSX
+        document.getElementById('exportXlsxBtn').addEventListener('click', () => {
+            const layers = drawnItems.getLayers().filter(l => l instanceof L.Polygon || l instanceof L.Rectangle);
+            if (layers.length === 0 && allMarkers.length === 0) {
+                alert('Brak danych do wyeksportowania!');
+                return;
+            }
+
+            const workdays = parseInt(workdaysCountEl.innerText) || 0;
+            const regionStats = {};
+
+            layers.forEach(l => {
+                const name = l.regionName || 'Bez nazwy';
+                if (!regionStats[name]) {
+                    regionStats[name] = 0;
+                }
+            });
+
+            const pointsDetailsData = [];
+
+            allMarkers.forEach(m => {
+                const title = m.markerTitle || 'Punkt';
+                const regName = m.assignedRegionName || 'Nieprzypisany';
+                const ll = m.getLatLng();
+
+                if (regName !== 'Nieprzypisany' && regionStats[regName] !== undefined) {
+                    regionStats[regName]++;
+                }
+
+                pointsDetailsData.push({
+                    'Nazwa / Adres': title,
+                    'Przypisany Rejon': regName,
+                    'Szerokość geogr. (Lat)': ll.lat,
+                    'Długość geogr. (Lng)': ll.lng
+                });
+            });
+
+            const summaryData = Object.keys(regionStats).map(name => {
+                const count = regionStats[name];
+                const perDay = workdays > 0 ? Math.round(count / workdays) : 0;
+                return {
+                    'Nazwa Rejonu': name,
+                    'Liczba Punktów': count,
+                    'Dni Robocze': workdays,
+                    'Średnia Dziennie': perDay
+                };
+            });
+
+            const unassignedCount = allMarkers.filter(m => !m.isAssigned).length;
+            summaryData.push({
+                'Nazwa Rejonu': 'Nieprzypisane',
+                'Liczba Punktów': unassignedCount,
+                'Dni Robocze': workdays,
+                'Średnia Dziennie': workdays > 0 ? Math.round(unassignedCount / workdays) : 0
+            });
+
+            const wb = XLSX.utils.book_new();
+
+            const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+            XLSX.utils.book_append_sheet(wb, wsSummary, "Podsumowanie Rejonów");
+
+            const wsDetails = XLSX.utils.json_to_sheet(pointsDetailsData);
+            XLSX.utils.book_append_sheet(wb, wsDetails, "Wszystkie Punkty");
+
+            XLSX.writeFile(wb, `podsumowanie_rejonow_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        });
+
         loadFromLocalStorage();
     </script>
 </body>
